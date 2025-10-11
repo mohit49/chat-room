@@ -31,6 +31,12 @@ class NotificationServiceImpl {
     return notifications;
   }
 
+  async getUnreadCount(userId: string): Promise<number> {
+    const notifications = await storage.getNotifications(userId);
+    const unreadCount = notifications.filter(n => n.status === 'unread').length;
+    return unreadCount;
+  }
+
   async markAsRead(notificationId: string, userId: string): Promise<boolean> {
     const result = await storage.markNotificationAsRead(notificationId, userId);
     return result;

@@ -18,6 +18,21 @@ export const notificationController = {
     }
   },
 
+  // Get unread notification count
+  getUnreadCount: async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.userId!;
+      const count = await notificationService.getUnreadCount(userId);
+      
+      res.json({
+        success: true,
+        count
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  },
+
   // Mark notification as read
   markNotificationAsRead: async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {

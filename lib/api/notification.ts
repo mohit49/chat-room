@@ -63,19 +63,19 @@ export const notificationApi = {
 
   // Mark all notifications as read
   markAllAsRead: async () => {
-    const response = await apiClient.put('/notifications/mark-all-read');
+    const response = await apiClient.put('/notifications/read-all');
     return response;
   },
 
-  // Approve room invitation
+  // Approve room invitation (this should be in room routes, not notification routes)
   approveInvitation: async (notificationId: string) => {
-    const response = await apiClient.post(`/notifications/${notificationId}/approve`);
+    const response = await apiClient.post(`/rooms/approve-invitation`);
     return response;
   },
 
-  // Reject room invitation
+  // Reject room invitation (this should be in room routes, not notification routes)
   rejectInvitation: async (notificationId: string) => {
-    const response = await apiClient.post(`/notifications/${notificationId}/reject`);
+    const response = await apiClient.post(`/rooms/reject-invitation`);
     return response;
   },
 
