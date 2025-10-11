@@ -165,14 +165,6 @@ export const api = {
   },
 
   // Notifications
-  async getNotifications(): Promise<ApiResponse> {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error('Authentication token not found');
-    }
-    return apiClient.get('/user/notifications', token);
-  },
-
   async markNotificationAsRead(notificationId: string): Promise<ApiResponse> {
     const token = getAuthToken();
     if (!token) {

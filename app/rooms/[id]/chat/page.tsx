@@ -144,11 +144,11 @@ function ChatPageContent() {
   const messagesStartRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<number | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isLoadingMoreRef = useRef(false);
   const shouldAutoScrollRef = useRef(true);
   const hasLoadedMessagesRef = useRef(false);
-  const scrollTimeoutRef = useRef<number | null>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const canSendMessages = true; // Allow all authenticated users to send messages for now
 

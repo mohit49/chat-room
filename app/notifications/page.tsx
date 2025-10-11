@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +15,7 @@ import { Check, X, Trash2, Bell, CheckCheck } from 'lucide-react';
 
 export default function NotificationsPage() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -28,7 +30,7 @@ export default function NotificationsPage() {
   const fetchNotifications = async (pageNum: number = 0, reset: boolean = false) => {
     try {
       setLoading(true);
-      const response = await api.getNotifications(20, pageNum * 20);
+      const response = await api.getNotifications(20, pageNum * 20) as any;
       if (response.success) {
         if (reset) {
           setNotifications(response.notifications);
@@ -78,7 +80,7 @@ export default function NotificationsPage() {
 
   const handleApproveInvitation = async (notificationId: string) => {
     try {
-      const response = await api.approveInvitation(notificationId);
+      const response = await api.approveInvitation(notificationId) as any;
       if (response.success) {
         setNotifications(prev => 
           prev.map(notif => 
@@ -95,7 +97,7 @@ export default function NotificationsPage() {
 
   const handleRejectInvitation = async (notificationId: string) => {
     try {
-      const response = await api.rejectInvitation(notificationId);
+      const response = await api.rejectInvitation(notificationId) as any;
       if (response.success) {
         setNotifications(prev => 
           prev.map(notif => 
@@ -107,6 +109,15 @@ export default function NotificationsPage() {
       }
     } catch (error) {
       console.error('Error rejecting invitation:', error);
+    }
+  };
+
+  const handleDeleteNotification = async (notificationId: string) => {
+    try {
+      await api.deleteNotification(notificationId);
+      setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
+    } catch (error) {
+      console.error('Error deleting notification:', error);
     }
   };
 

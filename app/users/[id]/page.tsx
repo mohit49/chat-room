@@ -54,7 +54,7 @@ export default function UserProfilePage() {
         const response = await api.getUserById(userId);
         
         if (response.success && response.user) {
-          setUser(response.user);
+          setUser(response.user as unknown as UserProfile);
         } else {
           setError(response.error || 'Failed to load user profile');
         }

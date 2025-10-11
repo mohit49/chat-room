@@ -66,7 +66,7 @@ export default function RoomDetailsPopup({ isOpen, onClose, room, currentUserId 
 
   const getCurrentUserRole = (): 'admin' | 'editor' | 'viewer' | null => {
     if (!roomData || !currentUserId) return null;
-    const member = roomData.members.find(m => m.id === currentUserId);
+    const member = roomData.members.find(m => m.userId === currentUserId);
     return member ? member.role : null;
   };
 

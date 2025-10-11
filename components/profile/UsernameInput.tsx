@@ -67,7 +67,7 @@ export default function UsernameInput({ value, onChange, onValidationChange }: U
       checkAvailability(value);
     }, 500);
 
-    setTypingTimeout(timeout);
+    setTypingTimeout(timeout as any);
 
     return () => {
       if (timeout) clearTimeout(timeout);
@@ -83,9 +83,9 @@ export default function UsernameInput({ value, onChange, onValidationChange }: U
       const response = await api.checkUsername(token, username);
       
       if (response.success) {
-        setIsAvailable(response.available);
-        setValidationMessage(response.message || '');
-        onValidationChange?.(response.available);
+        setIsAvailable((response as any).available);
+        setValidationMessage((response as any).message || '');
+        onValidationChange?.((response as any).available);
       }
     } catch (error) {
       console.error('Error checking username:', error);

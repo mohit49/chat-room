@@ -155,12 +155,12 @@ export default function ChatWidget({
   const messagesStartRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<number | null>(null);
-  const roomMembersTimeoutRef = useRef<number | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const roomMembersTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isLoadingMoreRef = useRef(false);
   const shouldAutoScrollRef = useRef(true);
   const hasLoadedMessagesRef = useRef(false);
-  const scrollTimeoutRef = useRef<number | null>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const canSendMessages = userRole === 'admin' || userRole === 'editor';
 

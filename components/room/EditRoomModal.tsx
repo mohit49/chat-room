@@ -89,7 +89,7 @@ export default function EditRoomModal({
       console.log('Update Data:', updateData);
       console.log('Profile Picture in Update Data:', updateData.profilePicture);
       
-      const response = await api.updateRoom(room.id, updateData);
+      const response = await api.updateRoom(room.id, updateData) as any;
       console.log('=== UPDATE ROOM RESPONSE ===');
       console.log('Response:', response);
       console.log('Response success:', response.success);
@@ -203,7 +203,7 @@ export default function EditRoomModal({
                 } else if (type === 'avatar') {
                   console.log('Setting avatar type');
                   const avatarData = {
-                    type: 'avatar',
+                    type: 'avatar' as const,
                     avatarStyle: style,
                     seed: seed
                   };
