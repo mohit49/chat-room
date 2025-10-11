@@ -19,7 +19,9 @@ export function getApiUrl(): string {
   }
 
   // Default fallback for server-side rendering
-  return 'http://localhost:3001/api';
+  return process.env.NODE_ENV === 'production' 
+    ? 'http://YOUR_VPS_IP:3001/api'  // Replace with your VPS IP
+    : 'http://localhost:3001/api';
 }
 
 // Utility function to get the socket URL (API URL without /api)

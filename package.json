@@ -7,9 +7,11 @@
     "dev:localhost": "concurrently \"next dev\" \"npm run server\"",
     "demo": "concurrently \"next dev -H 0.0.0.0\" \"npm run server\" && npm run network-ip",
     "server": "tsx watch server/index.ts",
+    "server:prod": "tsx server/index.ts",
     "build": "next build",
     "start": "next start -H 0.0.0.0",
     "start:localhost": "next start",
+    "start:prod": "concurrently \"npm run server:prod\" \"npm run start\"",
     "lint": "next lint",
     "network-ip": "node scripts/get-network-ip.js"
   },

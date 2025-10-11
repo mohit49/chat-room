@@ -4,7 +4,11 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: true,
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 
+      (process.env.NODE_ENV === 'production' 
+        ? 'https://flipychat.com/api'  // Replace with your actual VPS IP
+        : 'http://localhost:3001/api'
+      ),
   },
   // Suppress hydration warnings in development
   ...(process.env.NODE_ENV === 'development' && {
