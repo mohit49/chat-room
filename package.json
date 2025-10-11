@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "concurrently \"next dev -H 0.0.0.0\" \"npm run server\"",
+    "dev:local": "concurrently \"next dev\" \"npm run server:local\"",
     "dev:localhost": "concurrently \"next dev\" \"npm run server\"",
     "demo": "concurrently \"next dev -H 0.0.0.0\" \"npm run server\" && npm run network-ip",
     "server": "tsx watch server/index.ts",
-    "server:prod": "tsx server/index.ts",
+    "server:local": "cross-env NODE_ENV=development tsx watch server/index.ts",
+    "server:prod": "cross-env NODE_ENV=production tsx server/index.ts",
     "build": "next build",
     "start": "next start -H 0.0.0.0",
     "start:localhost": "next start",
@@ -67,6 +69,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.20.6",
     "typescript": "^5"

@@ -1,7 +1,13 @@
 import dotenv from 'dotenv';
 import os from 'os';
+import path from 'path';
 
-// Load environment variables
+// Load environment variables based on NODE_ENV
+const envFile = process.env.NODE_ENV === 'production' ? 'prod.env' : 'local.env';
+console.log(`🔧 Loading environment file: ${envFile}`);
+dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+
+// Also load .env.local if it exists (for backward compatibility)
 dotenv.config({ path: '.env.local' });
 
 // Function to get network IP addresses for CORS
@@ -37,9 +43,12 @@ export const config = {
       'http://localhost:3002',
       'https://flipychat.com',
       'http://flipychat.com',
-      ...getNetworkIPsForCORS(),
-      process.env.CORS_ORIGIN || 'http://localhost:3000'
-    ].filter(Boolean),
+      // Environment-specific URLs
+      process.env.FRONTEND_URL,
+      process.env.CORS_ORIGIN,
+      process.env.ADDITIONAL_CORS_ORIGINS?.split(','),
+      ...getNetworkIPsForCORS()
+    ].filter(Boolean).flat(),
     credentials: true,
   },
   
