@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 
       (process.env.NODE_ENV === 'production' 
-        ? 'https://flipychat.com/api'  // Replace with your actual VPS IP
+        ? 'https://flipychat.com:3001/api'  // Include port 3001
         : 'http://localhost:3001/api'
       ),
   },

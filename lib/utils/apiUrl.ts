@@ -20,7 +20,7 @@ export function getApiUrl(): string {
 
   // Default fallback for server-side rendering
   return process.env.NODE_ENV === 'production' 
-    ? 'https://flipychat.com/api'  // Replace with your VPS IP
+    ? 'https://flipychat.com:3001/api'  // Include port 3001
     : 'http://localhost:3001/api';
 }
 

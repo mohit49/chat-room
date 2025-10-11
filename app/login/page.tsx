@@ -23,13 +23,16 @@ export default function LoginPage() {
   useEffect(() => {
     const fetchNetworkInfo = async () => {
       try {
-        const response = await fetch('/api/network-info');
+        // Use the API client to get the proper URL
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const response = await fetch(`${apiUrl}/network-info`);
         const data = await response.json();
         if (data.success) {
           setNetworkInfo(data);
         }
       } catch (error) {
         console.error('Failed to fetch network info:', error);
+        // Don't show error to user, just log it
       }
     };
 
