@@ -24,7 +24,7 @@ function getNetworkIPsForCORS() {
 
 export const config = {
   env: process.env.NODE_ENV || 'development',
-  port: parseInt(process.env.PORT || '3001', 10),
+  port: parseInt(process.env.PORT || (process.env.NODE_ENV === 'production' ? '80' : '3001'), 10),
   
   jwt: {
     secret: process.env.JWT_SECRET || 'fallback-secret-key',
@@ -35,6 +35,8 @@ export const config = {
     origin: [
       'http://localhost:3000',
       'http://localhost:3002',
+      'https://flipychat.com',
+      'http://flipychat.com',
       ...getNetworkIPsForCORS(),
       process.env.CORS_ORIGIN || 'http://localhost:3000'
     ].filter(Boolean),
