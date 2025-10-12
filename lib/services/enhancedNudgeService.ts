@@ -75,12 +75,25 @@ class EnhancedNudgeService {
       if ('serviceWorker' in navigator && 'Notification' in window) {
         const registration = await navigator.serviceWorker.ready;
         
+        // Try to send message to service worker for background notifications
+        if (registration.active) {
+          registration.active.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title: pushData.title,
+            body: pushData.body,
+            data: pushData.data
+          });
+        }
+        
+        // Also show notification directly
         await registration.showNotification(pushData.title, {
           body: pushData.body,
           icon: pushData.icon,
           badge: pushData.badge,
           tag: pushData.tag,
-          requireInteraction: options.requireInteraction,
+          requireInteraction: options.requireInteraction || true,
+          vibrate: [200, 100, 200], // Vibration pattern
+          silent: false,
           data: pushData.data,
           actions: pushData.actions
         } as any);

@@ -15,6 +15,7 @@ import { NotificationSettings } from '@/components/notifications/NotificationSet
 import { EnhancedNotificationSettings } from '@/components/notifications/EnhancedNotificationSettings';
 import { NudgeTestPanel } from '@/components/notifications/NudgeTestPanel';
 import { SocketAndPushTestPanel } from '@/components/notifications/SocketAndPushTestPanel';
+import { BackgroundNotificationTest } from '@/components/notifications/BackgroundNotificationTest';
 import { APP_HEADER_CONFIGS } from '@/lib/config/app-header';
 import AppHeader from '@/components/layout/AppHeader';
 import { api } from '@/lib/api';
@@ -454,6 +455,9 @@ export default function ProfilePage() {
 
         {/* Socket & Push Test Panel - Remove this in production */}
         <SocketAndPushTestPanel />
+
+        {/* Background Notification Test - Remove this in production */}
+        <BackgroundNotificationTest />
       </div>
     </div>
   );

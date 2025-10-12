@@ -51,5 +51,10 @@
         }
       ]
     }
-  ]
+  ],
+  "permissions": [
+    "notifications",
+    "background-sync"
+  ],
+  "prefer_related_applications": false
 }

@@ -145,6 +145,8 @@ class PushNotificationService {
         badge: '/icon-192x192.svg',
         tag: 'test-notification',
         requireInteraction: true,
+        vibrate: [200, 100, 200], // Vibration pattern
+        silent: false,
         actions: [
           {
             action: 'open',

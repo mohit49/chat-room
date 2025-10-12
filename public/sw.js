@@ -105,6 +105,8 @@ self.addEventListener('push', (event) => {
     badge: '/icon-192x192.svg',
     tag: 'chat-notification',
     requireInteraction: true,
+    vibrate: [200, 100, 200], // Vibration pattern
+    silent: false,
     actions: [
       {
         action: 'open',
@@ -155,8 +157,15 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  // Ensure notification shows on home screen even when app is closed
   event.waitUntil(
     self.registration.showNotification(notificationData.title, notificationData)
+      .then(() => {
+        console.log('Service Worker: Notification displayed successfully');
+      })
+      .catch((error) => {
+        console.error('Service Worker: Failed to show notification:', error);
+      })
   );
 });
 
@@ -304,3 +313,37 @@ function removeOfflineMessage(messageId) {
     };
   });
 }
+
+// Handle background message notifications
+self.addEventListener('message', (event) => {
+  console.log('Service Worker: Message received', event.data);
+  
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, body, data } = event.data;
+    
+    event.waitUntil(
+      self.registration.showNotification(title, {
+        body,
+        icon: '/icon-192x192.svg',
+        badge: '/icon-192x192.svg',
+        tag: 'background-notification',
+        requireInteraction: true,
+        vibrate: [200, 100, 200],
+        silent: false,
+        data,
+        actions: [
+          {
+            action: 'open',
+            title: 'Open Chat',
+            icon: '/icon-192x192.svg'
+          },
+          {
+            action: 'dismiss',
+            title: 'Dismiss',
+            icon: '/icon-192x192.svg'
+          }
+        ]
+      })
+    );
+  }
+});
