@@ -14,8 +14,11 @@
     "start": "next start -H 0.0.0.0",
     "start:localhost": "next start",
     "start:prod": "concurrently \"npm run server:prod\" \"npm run start\"",
+    "start:domain": "cross-env NODE_ENV=production npm run start:prod",
     "lint": "next lint",
-    "network-ip": "node scripts/get-network-ip.js"
+    "network-ip": "node scripts/get-network-ip.js",
+    "setup:local": "copy env.example .env.local && echo Local environment file created. Please edit .env.local with your settings.",
+    "setup:prod": "copy env.example .env.production && echo Production environment file created. Please edit .env.production with your domain settings."
   },
   "dependencies": {
     "@dicebear/collection": "^9.2.4",

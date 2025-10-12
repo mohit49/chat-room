@@ -16,6 +16,7 @@ A modern, scalable chat application built with Next.js, React Native (Expo), Typ
 - 🎯 **Custom Error Handling** with error classes
 - 🔄 **Custom React Hooks** for reusable logic
 - 📦 **Modular Structure** for scalability
+- 🏠 **Smart Environment Detection** (localhost for dev, domain for production)
 
 ## 🎯 Supported Platforms
 
@@ -27,6 +28,64 @@ A modern, scalable chat application built with Next.js, React Native (Expo), Typ
 | **Backend** | Express.js | ✅ Shared |
 
 ---
+
+## 🚀 Quick Start
+
+### Option 1: Automated Setup (Recommended)
+
+**Windows:**
+```bash
+setup.bat
+```
+
+**Linux/Mac:**
+```bash
+./setup.sh
+```
+
+### Option 2: Manual Setup
+
+**For Local Development:**
+```bash
+# Install dependencies
+npm install
+
+# Setup local environment
+npm run setup:local
+
+# Start development server
+npm run dev:local
+```
+
+**For VPS Deployment:**
+```bash
+# Install dependencies
+npm install
+
+# Setup production environment
+npm run setup:prod
+
+# Edit .env.production with your domain
+# Build and start
+npm run build
+npm run start:domain
+```
+
+## 🌐 Environment Configuration
+
+The app automatically detects your environment and configures URLs accordingly:
+
+### Local Development
+- **Frontend**: `http://localhost:3000`
+- **Backend**: `http://localhost:3001`
+- **API**: `http://localhost:3001/api`
+- **CORS**: Allows localhost and network IPs
+
+### VPS Production
+- **Frontend**: `https://yourdomain.com`
+- **Backend**: `https://yourdomain.com`
+- **API**: `https://yourdomain.com/api`
+- **CORS**: Configured for your domain
 
 ## 📂 Project Structure
 

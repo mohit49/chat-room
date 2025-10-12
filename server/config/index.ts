@@ -1,31 +1,72 @@
 import dotenv from 'dotenv';
 import os from 'os';
-import path from 'path';
 
-// Load environment variables based on NODE_ENV
-const envFile = process.env.NODE_ENV === 'production' ? 'prod.env' : 'local.env';
-console.log(`🔧 Loading environment file: ${envFile}`);
-dotenv.config({ path: path.resolve(process.cwd(), envFile) });
-
-// Also load .env.local if it exists (for backward compatibility)
+// Load environment variables
 dotenv.config({ path: '.env.local' });
 
 // Function to get network IP addresses for CORS
-function getNetworkIPsForCORS() {
+function getNetworkIPsForCORS(): string[] {
   const interfaces = os.networkInterfaces();
-  const addresses = [];
+  const addresses: string[] = [];
 
   for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
-      if (iface.family === 'IPv4' && !iface.internal) {
-        addresses.push(`http://${iface.address}:3000`);
-        addresses.push(`http://${iface.address}:3002`);
+    const iface = interfaces[name];
+    if (iface) {
+      for (const addr of iface) {
+        // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
+        if (addr.family === 'IPv4' && !addr.internal) {
+          addresses.push(`http://${addr.address}:3000`);
+          addresses.push(`http://${addr.address}:3002`);
+        }
       }
     }
   }
 
   return addresses;
+}
+
+// Function to get CORS origins based on environment
+function getCorsOrigins(): string[] {
+  const origins: string[] = [];
+  
+  // Add localhost origins for development
+  if (process.env.NODE_ENV === 'development') {
+    origins.push('http://localhost:3000', 'http://localhost:3002');
+  }
+  
+  // Add domain origins for production
+  if (process.env.NODE_ENV === 'production') {
+    const domain = process.env.DOMAIN || 'flipychat.com';
+    const useHttps = process.env.USE_HTTPS === 'true' || process.env.NODE_ENV === 'production';
+    const protocol = useHttps ? 'https' : 'http';
+    
+    origins.push(`${protocol}://${domain}`);
+    origins.push(`${protocol}://www.${domain}`);
+    
+    // Add HTTP version if HTTPS is enabled (for redirects)
+    if (useHttps) {
+      origins.push(`http://${domain}`);
+      origins.push(`http://www.${domain}`);
+    }
+  }
+  
+  // Add explicit CORS origins from environment
+  if (process.env.CORS_ORIGIN) {
+    origins.push(process.env.CORS_ORIGIN);
+  }
+  
+  // Add additional CORS origins
+  if (process.env.ADDITIONAL_CORS_ORIGINS) {
+    const additionalOrigins = process.env.ADDITIONAL_CORS_ORIGINS.split(',').map(origin => origin.trim());
+    origins.push(...additionalOrigins);
+  }
+  
+  // Add network IPs for development
+  if (process.env.NODE_ENV === 'development') {
+    origins.push(...getNetworkIPsForCORS());
+  }
+  
+  return [...new Set(origins)].filter(Boolean);
 }
 
 export const config = {
@@ -38,17 +79,7 @@ export const config = {
   },
   
   cors: {
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3002',
-      'https://flipychat.com',
-      'http://flipychat.com',
-      // Environment-specific URLs
-      process.env.FRONTEND_URL,
-      process.env.CORS_ORIGIN,
-      process.env.ADDITIONAL_CORS_ORIGINS?.split(','),
-      ...getNetworkIPsForCORS()
-    ].filter(Boolean).flat(),
+    origin: getCorsOrigins(),
     credentials: true,
   },
   
@@ -59,6 +90,14 @@ export const config = {
   api: {
     prefix: '/api',
     version: 'v1',
+  },
+  
+  // Domain configuration for production
+  domain: {
+    name: process.env.DOMAIN || 'flipychat.com',
+    useHttps: process.env.USE_HTTPS === 'true' || process.env.NODE_ENV === 'production',
+    sslCertPath: process.env.SSL_CERT_PATH,
+    sslKeyPath: process.env.SSL_KEY_PATH,
   },
 } as const;
 

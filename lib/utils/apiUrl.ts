@@ -20,7 +20,7 @@ export function getApiUrl(): string {
 
   // Default fallback for server-side rendering
   return process.env.NODE_ENV === 'production' 
-    ? 'https://flipychat.com:3001/api'  // Include port 3001
+    ? 'https://flipychat.com/api'  // Remove port for production (nginx handles routing)
     : 'http://localhost:3001/api';
 }
 
