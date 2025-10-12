@@ -14,6 +14,7 @@ import MobileNumberUpdate from '@/components/profile/MobileNumberUpdate';
 import { NotificationSettings } from '@/components/notifications/NotificationSettings';
 import { EnhancedNotificationSettings } from '@/components/notifications/EnhancedNotificationSettings';
 import { NudgeTestPanel } from '@/components/notifications/NudgeTestPanel';
+import { SocketAndPushTestPanel } from '@/components/notifications/SocketAndPushTestPanel';
 import { APP_HEADER_CONFIGS } from '@/lib/config/app-header';
 import AppHeader from '@/components/layout/AppHeader';
 import { api } from '@/lib/api';
@@ -450,6 +451,9 @@ export default function ProfilePage() {
 
         {/* Test Panel - Remove this in production */}
         <NudgeTestPanel />
+
+        {/* Socket & Push Test Panel - Remove this in production */}
+        <SocketAndPushTestPanel />
       </div>
     </div>
   );

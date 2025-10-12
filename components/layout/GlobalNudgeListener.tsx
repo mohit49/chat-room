@@ -5,6 +5,7 @@ import { useSocket } from '@/lib/contexts/SocketContext';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useNudge } from '@/lib/contexts/NudgeContext';
+import { useEnhancedNudge } from '@/lib/contexts/EnhancedNudgeContext';
 import { isAnyChatOpen } from '@/components/layout/GlobalChatManager';
 import { api } from '@/lib/api';
 
@@ -12,6 +13,7 @@ export default function GlobalNudgeListener() {
   const { user } = useAuth();
   const { socket, connected, connectionConfirmed } = useSocket();
   const { showNudge } = useNudge();
+  const { showMessageNudge, showFollowNudge, showRoomNudge } = useEnhancedNudge();
   const [userRooms, setUserRooms] = useState<Set<string>>(new Set());
 
   // Fetch user's rooms on mount
@@ -34,9 +36,18 @@ export default function GlobalNudgeListener() {
   }, [user]);
 
   // Memoize the handlers to prevent unnecessary re-renders
-  const handleDirectMessage = useCallback((message: any) => {
+  const handleDirectMessage = useCallback(async (message: any) => {
     // Only show nudge if user is not in a chat and message is not from current user
     if (user && message.senderId !== user.id && !isAnyChatOpen()) {
+      // Use enhanced nudge system for push notifications
+      await showMessageNudge(
+        message.senderId,
+        message.senderUsername,
+        message.message || 'You have a new message',
+        message.senderProfilePicture
+      );
+      
+      // Also show in-app nudge for backward compatibility
       showNudge({
         type: 'message',
         title: 'New Message',
@@ -47,9 +58,9 @@ export default function GlobalNudgeListener() {
         data: message
       });
     }
-  }, [user, showNudge]);
+  }, [user, showNudge, showMessageNudge]);
 
-  const handleNewMessage = useCallback((message: any) => {
+  const handleNewMessage = useCallback(async (message: any) => {
     // Only show nudge if:
     // 1. Message is not from current user
     // 2. User is not in any active chat
@@ -59,6 +70,17 @@ export default function GlobalNudgeListener() {
         !isAnyChatOpen() && 
         message.roomId && 
         userRooms.has(message.roomId)) {
+      
+      // Use enhanced nudge system for push notifications
+      await showRoomNudge(
+        message.roomId,
+        message.roomName || 'Room',
+        message.message || 'New message in room',
+        message.userId,
+        message.username
+      );
+      
+      // Also show in-app nudge for backward compatibility
       showNudge({
         type: 'message',
         title: 'New Room Message',
@@ -71,11 +93,30 @@ export default function GlobalNudgeListener() {
         data: message
       });
     }
-  }, [user, showNudge, userRooms]);
+  }, [user, showNudge, showRoomNudge, userRooms]);
 
-  const handleMessageNotification = useCallback((notification: any) => {
+  const handleMessageNotification = useCallback(async (notification: any) => {
     // Show nudge for message notifications
     if (user && notification.senderId !== user.id) {
+      // Use enhanced nudge system for push notifications
+      if (notification.roomId) {
+        await showRoomNudge(
+          notification.roomId,
+          notification.roomName || 'Room',
+          notification.message || 'You have a new message',
+          notification.senderId,
+          notification.senderUsername
+        );
+      } else {
+        await showMessageNudge(
+          notification.senderId,
+          notification.senderUsername,
+          notification.message || 'You have a new message',
+          notification.senderProfilePicture
+        );
+      }
+      
+      // Also show in-app nudge for backward compatibility
       showNudge({
         type: 'message',
         title: notification.title || 'New Message',
@@ -86,7 +127,7 @@ export default function GlobalNudgeListener() {
         data: notification
       });
     }
-  }, [user, showNudge]);
+  }, [user, showNudge, showMessageNudge, showRoomNudge]);
 
   // Handle room updates (when user joins or is added to a room)
   const handleRoomUpdate = useCallback((data: any) => {

@@ -55,16 +55,23 @@ export function SocketProvider({ children }: SocketProviderProps) {
       timeout: 10000,
       forceNew: false,
       reconnection: true,
-      reconnectionAttempts: 3,
-      reconnectionDelay: 500,
-      reconnectionDelayMax: 2000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
       autoConnect: true,
       upgrade: true,
       rememberUpgrade: true,
-      multiplex: true
+      multiplex: true,
+      // PWA-specific options
+      withCredentials: true,
+      // Ensure connection works in PWA mode
+      ...(typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches && {
+        transports: ['websocket', 'polling'], // Prefer websocket in PWA
+      })
     });
 
     newSocket.on('connect', () => {
+      console.log('🔌 Socket connected');
       setConnected(true);
       
       // Send authentication after connection
@@ -72,20 +79,49 @@ export function SocketProvider({ children }: SocketProviderProps) {
     });
 
     newSocket.on('auth_error', (error) => {
+      console.error('❌ Socket auth error:', error);
       setConnected(false);
       setConnectionConfirmed(false);
     });
 
     newSocket.on('connection_confirmed', (data) => {
+      console.log('✅ Socket connection confirmed');
       setConnectionConfirmed(true);
     });
 
     newSocket.on('disconnect', (reason) => {
+      console.log('🔌 Socket disconnected:', reason);
+      setConnected(false);
+      setConnectionConfirmed(false);
+      
+      // In PWA mode, try to reconnect more aggressively
+      if (typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches) {
+        console.log('🔄 PWA mode detected, attempting reconnection...');
+      }
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('❌ Socket connection error:', error);
       setConnected(false);
       setConnectionConfirmed(false);
     });
 
-    newSocket.on('connect_error', (error) => {
+    // Add reconnection event handlers
+    newSocket.on('reconnect', (attemptNumber) => {
+      console.log(`🔄 Socket reconnected after ${attemptNumber} attempts`);
+      setConnected(true);
+    });
+
+    newSocket.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`🔄 Socket reconnection attempt ${attemptNumber}`);
+    });
+
+    newSocket.on('reconnect_error', (error) => {
+      console.error('❌ Socket reconnection error:', error);
+    });
+
+    newSocket.on('reconnect_failed', () => {
+      console.error('❌ Socket reconnection failed');
       setConnected(false);
       setConnectionConfirmed(false);
     });

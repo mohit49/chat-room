@@ -122,6 +122,33 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     try {
       const data = event.data.json();
+      console.log('Service Worker: Push data received:', data);
+      
+      // Customize notification based on message type
+      if (data.type === 'message') {
+        if (data.roomId) {
+          notificationData.title = `${data.senderUsername} in ${data.roomName || 'Room'}`;
+          notificationData.body = data.message || 'New message in room';
+          notificationData.tag = `room-${data.roomId}`;
+        } else {
+          notificationData.title = data.senderUsername || 'New Message';
+          notificationData.body = data.message || 'You have a new message';
+          notificationData.tag = `dm-${data.senderId}`;
+        }
+      } else if (data.type === 'follow') {
+        notificationData.title = 'New Follower';
+        notificationData.body = `${data.senderUsername} started following you`;
+        notificationData.tag = `follow-${data.senderId}`;
+      } else if (data.type === 'room') {
+        notificationData.title = data.roomName || 'Room Update';
+        notificationData.body = data.message || 'New room activity';
+        notificationData.tag = `room-${data.roomId}`;
+      } else {
+        notificationData.title = data.title || 'Chat App';
+        notificationData.body = data.message || 'You have a new notification';
+      }
+      
+      // Update notification data with custom data
       notificationData = { ...notificationData, ...data };
     } catch (error) {
       console.error('Service Worker: Error parsing push data', error);
@@ -146,16 +173,57 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // If there's already a window open, focus it
+        // If there's already a window open, focus it and navigate
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && 'focus' in client) {
+            // Navigate to appropriate chat based on notification data
+            const data = event.notification.data;
+            let targetUrl = '/';
+            
+            if (data) {
+              if (data.type === 'message') {
+                if (data.roomId) {
+                  targetUrl = `/rooms/${data.roomId}/chat`;
+                } else if (data.senderId) {
+                  targetUrl = `/users/${data.senderId}`;
+                }
+              } else if (data.type === 'follow' && data.senderId) {
+                targetUrl = `/users/${data.senderId}`;
+              } else if (data.type === 'room' && data.roomId) {
+                targetUrl = `/rooms/${data.roomId}/chat`;
+              }
+            }
+            
+            // Send navigation message to client
+            client.postMessage({
+              type: 'NAVIGATE',
+              url: targetUrl
+            });
+            
             return client.focus();
           }
         }
 
         // Otherwise, open a new window
         if (clients.openWindow) {
-          return clients.openWindow('/');
+          const data = event.notification.data;
+          let targetUrl = '/';
+          
+          if (data) {
+            if (data.type === 'message') {
+              if (data.roomId) {
+                targetUrl = `/rooms/${data.roomId}/chat`;
+              } else if (data.senderId) {
+                targetUrl = `/users/${data.senderId}`;
+              }
+            } else if (data.type === 'follow' && data.senderId) {
+              targetUrl = `/users/${data.senderId}`;
+            } else if (data.type === 'room' && data.roomId) {
+              targetUrl = `/rooms/${data.roomId}/chat`;
+            }
+          }
+          
+          return clients.openWindow(targetUrl);
         }
       })
   );

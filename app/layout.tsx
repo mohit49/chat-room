@@ -13,6 +13,7 @@ import GlobalChatManager from "@/components/layout/GlobalChatManager";
 import GlobalSocketConnection from "@/components/layout/GlobalSocketConnection";
 import GlobalNudgeNotification from "@/components/layout/GlobalNudgeNotification";
 import GlobalNudgeListener from "@/components/layout/GlobalNudgeListener";
+import { PWASocketManager } from "@/components/layout/PWASocketManager";
 import { PWAManager } from "@/components/pwa/PWAManager";
 import { ClientOnly } from "@/components/ui/ClientOnly";
 import { NoSSR } from "@/components/ui/NoSSR";
@@ -55,6 +56,20 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192x192.svg" />
       </head>
       <body className="antialiased" suppressHydrationWarning>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Listen for messages from service worker
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.addEventListener('message', (event) => {
+                  if (event.data && event.data.type === 'NAVIGATE') {
+                    window.location.href = event.data.url;
+                  }
+                });
+              }
+            `,
+          }}
+        />
         <NoSSR>
           <AuthProvider>
             <GlobalAuthChecker>
@@ -67,6 +82,7 @@ export default function RootLayout({
                           <EnhancedNudgeProvider>
                             <PWAManager>
                               <GlobalSocketConnection />
+                              <PWASocketManager />
                               <GlobalNudgeListener />
                               {children}
                               <GlobalChatManager />
