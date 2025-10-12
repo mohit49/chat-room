@@ -317,3 +317,11 @@ See [README.md](./README.md) for deployment instructions.
 *Your app is now production-ready with enterprise-grade architecture!*
 
 
+Command	Purpose	Environment
+npm run dev:local	Start local development	localhost:3000 + localhost:3001
+npm run dev	Start with network access	0.0.0.0:3000 + localhost:3001
+npm run demo	Demo mode with network info	Network accessible
+npm run setup:local	Create local env file	Development
+npm run setup:prod	Create production env file	Production
+npm run build	Build for production	Production
+npm run start:domain	Start with domain config	Production
