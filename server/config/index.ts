@@ -1,8 +1,12 @@
 import dotenv from 'dotenv';
 import os from 'os';
 
-// Load environment variables
-dotenv.config({ path: '.env.local' });
+// Load environment variables based on NODE_ENV
+if (process.env.NODE_ENV === 'production') {
+  dotenv.config({ path: '.env.production' });
+} else {
+  dotenv.config({ path: 'local.env' });
+}
 
 // Function to get network IP addresses for CORS
 function getNetworkIPsForCORS(): string[] {

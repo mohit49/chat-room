@@ -65,9 +65,8 @@ npm install
 # Setup production environment
 npm run setup:prod
 
-# Edit .env.production with your domain
 # Build and start
-npm run build
+npm run build:prod
 npm run start:domain
 ```
 
