@@ -141,8 +141,8 @@ class PushNotificationService {
     try {
       await this.registration.showNotification('Test Notification', {
         body: 'This is a test notification from Chat App',
-        icon: '/icon-192x192.png',
-        badge: '/icon-192x192.png',
+        icon: '/icon-192x192.svg',
+        badge: '/icon-192x192.svg',
         tag: 'test-notification',
         requireInteraction: true,
         actions: [
@@ -155,7 +155,7 @@ class PushNotificationService {
             title: 'Dismiss'
           }
         ]
-      });
+      } as any);
     } catch (error) {
       console.error('Failed to send test notification:', error);
     }

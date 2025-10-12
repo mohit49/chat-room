@@ -101,20 +101,20 @@ self.addEventListener('push', (event) => {
   let notificationData = {
     title: 'Chat App',
     body: 'You have a new message',
-    icon: '/icon-192x192.png',
-    badge: '/icon-192x192.png',
+    icon: '/icon-192x192.svg',
+    badge: '/icon-192x192.svg',
     tag: 'chat-notification',
     requireInteraction: true,
     actions: [
       {
         action: 'open',
         title: 'Open Chat',
-        icon: '/icon-192x192.png'
+        icon: '/icon-192x192.svg'
       },
       {
         action: 'dismiss',
         title: 'Dismiss',
-        icon: '/icon-192x192.png'
+        icon: '/icon-192x192.svg'
       }
     ]
   };
