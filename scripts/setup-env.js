@@ -6,11 +6,13 @@ const path = require('path');
 // Get command line arguments
 const args = process.argv.slice(2);
 const setupType = args[0]; // 'local' or 'prod'
+const domain = args[1]; // Optional domain for production
 
 if (!setupType || !['local', 'prod'].includes(setupType)) {
-  console.log('❌ Usage: node setup-env.js [local|prod]');
+  console.log('❌ Usage: node setup-env.js [local|prod] [domain]');
   console.log('   local - Create .env.local for development');
   console.log('   prod  - Create .env.production for VPS deployment');
+  console.log('   domain - Optional domain name (default: flipychat.com)');
   process.exit(1);
 }
 
@@ -24,8 +26,45 @@ try {
     process.exit(1);
   }
 
-  // Copy the file
-  fs.copyFileSync(sourceFile, targetFile);
+  let content = fs.readFileSync(sourceFile, 'utf8');
+  
+  if (setupType === 'prod') {
+    const productionDomain = domain || 'flipychat.com';
+    
+    // Replace the template content with production-specific values
+    content = `# Production Environment Configuration for ${productionDomain}
+NODE_ENV=production
+PORT=3001
+
+# Domain Configuration
+DOMAIN=${productionDomain}
+USE_HTTPS=true
+
+# Production URLs
+FRONTEND_URL=https://${productionDomain}
+BACKEND_URL=https://${productionDomain}
+CORS_ORIGIN=https://${productionDomain}
+
+# Database Configuration
+DATABASE_URL=mongodb://localhost:27017/chat-app-prod
+
+# JWT Secret (use a secure secret in production)
+JWT_SECRET=your-super-secure-production-secret-key-change-this
+
+# Additional CORS Origins
+ADDITIONAL_CORS_ORIGINS=https://${productionDomain},http://${productionDomain},https://www.${productionDomain},http://www.${productionDomain}
+
+# Next.js Public API URL
+NEXT_PUBLIC_API_URL=https://${productionDomain}/api
+
+# SSL Configuration (if using custom SSL certificates)
+# SSL_CERT_PATH=/path/to/ssl/cert.pem
+# SSL_KEY_PATH=/path/to/ssl/private.key
+`;
+  }
+  
+  // Write the file
+  fs.writeFileSync(targetFile, content);
   
   console.log(`✅ ${setupType === 'local' ? 'Local development' : 'Production'} environment file created: ${targetFile}`);
   console.log('');
@@ -38,9 +77,19 @@ try {
     console.log('');
     console.log('To start: npm run dev:local');
   } else {
-    console.log('🌐 VPS Production Setup:');
+    const productionDomain = domain || 'flipychat.com';
+    console.log(`🌐 VPS Production Setup for ${productionDomain}:`);
+    console.log('   ✅ Environment configured with:');
+    console.log(`   - Domain: ${productionDomain}`);
+    console.log(`   - Frontend: https://${productionDomain}`);
+    console.log(`   - Backend: https://${productionDomain}`);
+    console.log(`   - API: https://${productionDomain}/api`);
+    console.log('');
+    console.log('   ⚠️  IMPORTANT: Change the JWT_SECRET in .env.production!');
+    console.log('   Generate a secure secret: openssl rand -base64 32');
+    console.log('');
     console.log('   Next steps:');
-    console.log('   1. Edit .env.production with your domain settings');
+    console.log('   1. Update JWT_SECRET in .env.production');
     console.log('   2. Build: npm run build');
     console.log('   3. Start: npm run start:domain');
     console.log('');

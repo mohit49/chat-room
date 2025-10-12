@@ -18,7 +18,8 @@
     "lint": "next lint",
     "network-ip": "node scripts/get-network-ip.js",
     "setup:local": "node scripts/setup-env.js local",
-    "setup:prod": "node scripts/setup-env.js prod"
+    "setup:prod": "node scripts/setup-env.js prod",
+    "setup:domain": "node scripts/setup-env.js prod flipychat.com"
   },
   "dependencies": {
     "@dicebear/collection": "^9.2.4",
