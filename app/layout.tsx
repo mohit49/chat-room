@@ -7,6 +7,7 @@ import { SoundProvider } from "@/lib/contexts/SoundContext";
 import { NotificationProvider } from "@/lib/contexts/NotificationContext";
 import { NudgeProvider } from "@/lib/contexts/NudgeContext";
 import { PushNotificationProvider } from "@/lib/contexts/PushNotificationContext";
+import { EnhancedNudgeProvider } from "@/lib/contexts/EnhancedNudgeContext";
 import { GlobalAuthChecker } from "@/components/auth/GlobalAuthChecker";
 import GlobalChatManager from "@/components/layout/GlobalChatManager";
 import GlobalSocketConnection from "@/components/layout/GlobalSocketConnection";
@@ -63,13 +64,15 @@ export default function RootLayout({
                     <NotificationProvider>
                       <NudgeProvider>
                         <PushNotificationProvider>
-                          <PWAManager>
-                            <GlobalSocketConnection />
-                            <GlobalNudgeListener />
-                            {children}
-                            <GlobalChatManager />
-                            <GlobalNudgeNotification />
-                          </PWAManager>
+                          <EnhancedNudgeProvider>
+                            <PWAManager>
+                              <GlobalSocketConnection />
+                              <GlobalNudgeListener />
+                              {children}
+                              <GlobalChatManager />
+                              <GlobalNudgeNotification />
+                            </PWAManager>
+                          </EnhancedNudgeProvider>
                         </PushNotificationProvider>
                       </NudgeProvider>
                     </NotificationProvider>

@@ -12,6 +12,8 @@ import AvatarUploader from '@/components/profile/AvatarUploader';
 import UsernameInput from '@/components/profile/UsernameInput';
 import MobileNumberUpdate from '@/components/profile/MobileNumberUpdate';
 import { NotificationSettings } from '@/components/notifications/NotificationSettings';
+import { EnhancedNotificationSettings } from '@/components/notifications/EnhancedNotificationSettings';
+import { NudgeTestPanel } from '@/components/notifications/NudgeTestPanel';
 import { APP_HEADER_CONFIGS } from '@/lib/config/app-header';
 import AppHeader from '@/components/layout/AppHeader';
 import { api } from '@/lib/api';
@@ -444,7 +446,10 @@ export default function ProfilePage() {
         />
 
         {/* Notification Settings */}
-        <NotificationSettings />
+        <EnhancedNotificationSettings />
+
+        {/* Test Panel - Remove this in production */}
+        <NudgeTestPanel />
       </div>
     </div>
   );
