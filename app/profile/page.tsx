@@ -11,6 +11,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import AvatarUploader from '@/components/profile/AvatarUploader';
 import UsernameInput from '@/components/profile/UsernameInput';
 import MobileNumberUpdate from '@/components/profile/MobileNumberUpdate';
+import { NotificationSettings } from '@/components/notifications/NotificationSettings';
 import { APP_HEADER_CONFIGS } from '@/lib/config/app-header';
 import AppHeader from '@/components/layout/AppHeader';
 import { api } from '@/lib/api';
@@ -441,6 +442,9 @@ export default function ProfilePage() {
             window.location.reload();
           }}
         />
+
+        {/* Notification Settings */}
+        <NotificationSettings />
       </div>
     </div>
   );

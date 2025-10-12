@@ -6,17 +6,36 @@ import { SocketProvider } from "@/lib/contexts/SocketContext";
 import { SoundProvider } from "@/lib/contexts/SoundContext";
 import { NotificationProvider } from "@/lib/contexts/NotificationContext";
 import { NudgeProvider } from "@/lib/contexts/NudgeContext";
+import { PushNotificationProvider } from "@/lib/contexts/PushNotificationContext";
 import { GlobalAuthChecker } from "@/components/auth/GlobalAuthChecker";
 import GlobalChatManager from "@/components/layout/GlobalChatManager";
 import GlobalSocketConnection from "@/components/layout/GlobalSocketConnection";
 import GlobalNudgeNotification from "@/components/layout/GlobalNudgeNotification";
 import GlobalNudgeListener from "@/components/layout/GlobalNudgeListener";
+import { PWAManager } from "@/components/pwa/PWAManager";
 import { ClientOnly } from "@/components/ui/ClientOnly";
 import { NoSSR } from "@/components/ui/NoSSR";
 
 export const metadata: Metadata = {
   title: "Chat App",
   description: "A modern chat application with user profiles",
+  manifest: "/manifest.json",
+  themeColor: "#667eea",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Chat App",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192x192.svg", sizes: "192x192", type: "image/svg+xml" },
+      { url: "/icon-512x512.svg", sizes: "512x512", type: "image/svg+xml" },
+    ],
+    apple: [
+      { url: "/icon-192x192.svg", sizes: "192x192", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -26,6 +45,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#667eea" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Chat App" />
+        <link rel="apple-touch-icon" href="/icon-192x192.svg" />
+      </head>
       <body className="antialiased" suppressHydrationWarning>
         <NoSSR>
           <AuthProvider>
@@ -35,11 +62,15 @@ export default function RootLayout({
                   <SoundProvider>
                     <NotificationProvider>
                       <NudgeProvider>
-                        <GlobalSocketConnection />
-                        <GlobalNudgeListener />
-                        {children}
-                        <GlobalChatManager />
-                        <GlobalNudgeNotification />
+                        <PushNotificationProvider>
+                          <PWAManager>
+                            <GlobalSocketConnection />
+                            <GlobalNudgeListener />
+                            {children}
+                            <GlobalChatManager />
+                            <GlobalNudgeNotification />
+                          </PWAManager>
+                        </PushNotificationProvider>
                       </NudgeProvider>
                     </NotificationProvider>
                   </SoundProvider>
