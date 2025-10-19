@@ -20,6 +20,7 @@ import notificationRoutesNew from './routes/notification.routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { setupSocketHandlers, connectedUsers } from './socket/socketHandlers';
 import socketService from './services/socket.service';
+import './utils/logger'; // Initialize logger to suppress console in production
 
 // Type definitions
 interface NetworkIP {

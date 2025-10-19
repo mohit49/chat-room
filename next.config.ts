@@ -33,6 +33,12 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_API_URL: getApiUrl(),
   },
+  // Remove console logs in production
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'], // Keep error and warn logs
+    } : false,
+  },
   // Suppress hydration warnings in development
   ...(process.env.NODE_ENV === 'development' && {
     onDemandEntries: {
