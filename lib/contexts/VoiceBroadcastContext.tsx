@@ -59,6 +59,13 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
     try {
       console.log('🎤 Starting broadcast...');
       
+      // Check if HTTPS or localhost
+      const isSecureContext = window.isSecureContext;
+      if (!isSecureContext) {
+        alert('⚠️ Voice broadcasting requires HTTPS or localhost. Please use a secure connection.');
+        return;
+      }
+      
       // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -85,10 +92,40 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
         username: user?.username || user?.mobileNumber
       });
 
-      console.log('✅ Voice broadcast started');
+      // Set up audio streaming via socket
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+      processor.onaudioprocess = (e) => {
+        const audioData = e.inputBuffer.getChannelData(0);
+        // Convert to array and send via socket
+        const audioArray = Array.from(audioData);
+        socket.emit('audio_stream', {
+          roomId,
+          audioData: audioArray
+        });
+      };
+
+      peerConnectionRef.current = processor as any;
+
+      console.log('✅ Voice broadcast started with audio streaming');
     } catch (error) {
       console.error('❌ Error starting broadcast:', error);
-      alert('Failed to start voice broadcast. Please check microphone permissions.');
+      
+      if ((error as any).name === 'NotAllowedError') {
+        alert('Microphone permission denied. Please allow microphone access.');
+      } else if ((error as any).name === 'NotFoundError') {
+        alert('No microphone found. Please connect a microphone.');
+      } else if ((error as any).name === 'NotSupportedError') {
+        alert('⚠️ Voice broadcasting requires HTTPS. Please use: https://your-domain.com');
+      } else {
+        alert('Failed to start voice broadcast. Please check microphone permissions and use HTTPS.');
+      }
+      
       setIsBroadcasting(false);
     }
   };
@@ -152,6 +189,10 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
   useEffect(() => {
     if (!socket) return;
 
+    let audioContext: AudioContext | null = null;
+    let audioBufferQueue: Float32Array[] = [];
+    let isPlaying = false;
+
     socket.on('voice_broadcast_started', (data: { userId: string; username: string; roomId: string }) => {
       if (data.roomId === roomId && data.userId !== user?.id) {
         console.log('📻 Broadcast started by:', data.username);
@@ -160,6 +201,33 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
           username: data.username
         });
         setIsListening(true);
+
+        // Initialize audio context for playback
+        audioContext = new AudioContext({ sampleRate: 48000 });
+        console.log('🎧 Audio context initialized for listening');
+      }
+    });
+
+    socket.on('audio_stream', (data: { roomId: string; audioData: number[] }) => {
+      if (data.roomId === roomId && audioContext && isListening && !isMuted) {
+        try {
+          // Convert received audio data back to Float32Array
+          const audioData = new Float32Array(data.audioData);
+          
+          // Create audio buffer
+          const audioBuffer = audioContext.createBuffer(1, audioData.length, audioContext.sampleRate);
+          audioBuffer.getChannelData(0).set(audioData);
+          
+          // Create buffer source and play
+          const source = audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioContext.destination);
+          source.start(0);
+          
+          isPlaying = true;
+        } catch (error) {
+          console.error('Error playing audio stream:', error);
+        }
       }
     });
 
@@ -169,19 +237,27 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
         setCurrentBroadcaster(null);
         setIsListening(false);
         
-        // Stop any playing audio
-        if (audioElementRef.current) {
-          audioElementRef.current.pause();
-          audioElementRef.current.srcObject = null;
+        // Stop and cleanup audio context
+        if (audioContext) {
+          audioContext.close();
+          audioContext = null;
         }
+        
+        audioBufferQueue = [];
+        isPlaying = false;
       }
     });
 
     return () => {
       socket.off('voice_broadcast_started');
       socket.off('voice_broadcast_stopped');
+      socket.off('audio_stream');
+      
+      if (audioContext) {
+        audioContext.close();
+      }
     };
-  }, [socket, roomId, user?.id]);
+  }, [socket, roomId, user?.id, isListening, isMuted]);
 
   // Cleanup on unmount
   useEffect(() => {

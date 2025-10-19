@@ -397,6 +397,15 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
       console.log('✅ Broadcast started notification sent to room:', data.roomId);
     });
 
+    // Handle audio streaming
+    socket.on('audio_stream', (data: { roomId: string; audioData: number[] }) => {
+      // Relay audio stream to all room members except broadcaster
+      socket.to(`room_${data.roomId}`).emit('audio_stream', {
+        roomId: data.roomId,
+        audioData: data.audioData
+      });
+    });
+
     socket.on('voice_broadcast_stop', async (data) => {
       console.log('🎤 Voice broadcast stopped:', data);
       const stopData = {
