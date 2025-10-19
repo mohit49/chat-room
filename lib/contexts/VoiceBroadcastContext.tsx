@@ -14,11 +14,13 @@ interface VoiceBroadcastContextType {
   isListening: boolean;
   currentBroadcaster: BroadcasterInfo | null;
   isMuted: boolean;
+  noiseCancellationLevel: 'off' | 'low' | 'medium' | 'high';
   startBroadcast: () => Promise<void>;
   stopBroadcast: () => void;
   toggleBroadcast: () => Promise<void>;
   toggleMute: () => void;
   toggleListen: () => void;
+  setNoiseCancellationLevel: (level: 'off' | 'low' | 'medium' | 'high') => void;
   canBroadcast: boolean;
 }
 
@@ -38,18 +40,26 @@ interface VoiceBroadcastProviderProps {
   userRole?: 'admin' | 'editor' | 'viewer' | null;
 }
 
+// Global state to track which room user is currently listening to
+let globalActiveListeningRoom: string | null = null;
+let globalListeningAudioContext: AudioContext | null = null;
+
 export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroadcastProviderProps) => {
   const { user } = useAuth();
   const { socket } = useSocket();
   const [isBroadcasting, setIsBroadcasting] = useState(false);
-  const [isListening, setIsListening] = useState(true); // Auto-listen when broadcast starts
+  const [isListening, setIsListening] = useState(false); // MANUAL PLAY - User must click Play
   const [currentBroadcaster, setCurrentBroadcaster] = useState<BroadcasterInfo | null>(null);
   const [isMuted, setIsMuted] = useState(false);
+  const [noiseCancellationLevel, setNoiseCancellationLevel] = useState<'off' | 'low' | 'medium' | 'high'>('high');
   
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const noiseGateRef = useRef<GainNode | null>(null);
+  const compressorRef = useRef<DynamicsCompressorNode | null>(null);
 
   const canBroadcast = userRole === 'admin';
 
@@ -66,17 +76,128 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
         return;
       }
       
+      // Get noise cancellation settings based on level
+      const getAudioConstraints = () => {
+        const baseConstraints = {
+          sampleRate: 48000,
+          channelCount: 1
+        };
+
+        switch (noiseCancellationLevel) {
+          case 'high':
+            return {
+              ...baseConstraints,
+              echoCancellation: { ideal: true },
+              noiseSuppression: { ideal: true },
+              autoGainControl: { ideal: true },
+              // Advanced constraints for better quality
+              sampleSize: 16,
+              latency: 0.01 // 10ms latency
+            };
+          case 'medium':
+            return {
+              ...baseConstraints,
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            };
+          case 'low':
+            return {
+              ...baseConstraints,
+              echoCancellation: true,
+              noiseSuppression: false,
+              autoGainControl: true
+            };
+          case 'off':
+            return {
+              ...baseConstraints,
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false
+            };
+        }
+      };
+
       // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 48000
-        } 
+        audio: getAudioConstraints()
       });
 
       mediaStreamRef.current = stream;
+      
+      // Set up advanced audio processing
+      const audioContext = new AudioContext({ sampleRate: 48000 });
+      audioContextRef.current = audioContext;
+      
+      const source = audioContext.createMediaStreamSource(stream);
+      
+      // Add noise gate to cut off low-level background noise
+      const noiseGate = audioContext.createGain();
+      noiseGateRef.current = noiseGate;
+      
+      // Add compressor for consistent volume levels
+      const compressor = audioContext.createDynamicsCompressor();
+      compressorRef.current = compressor;
+      compressor.threshold.value = -50;
+      compressor.knee.value = 40;
+      compressor.ratio.value = 12;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.25;
+      
+      // Add high-pass filter to remove low-frequency noise
+      const highPassFilter = audioContext.createBiquadFilter();
+      highPassFilter.type = 'highpass';
+      highPassFilter.frequency.value = 80; // Cut frequencies below 80Hz
+      highPassFilter.Q.value = 1;
+      
+      // Add low-pass filter to remove high-frequency noise
+      const lowPassFilter = audioContext.createBiquadFilter();
+      lowPassFilter.type = 'lowpass';
+      lowPassFilter.frequency.value = 8000; // Cut frequencies above 8kHz
+      lowPassFilter.Q.value = 1;
+      
+      // Connect audio processing chain
+      source.connect(highPassFilter);
+      highPassFilter.connect(lowPassFilter);
+      lowPassFilter.connect(noiseGate);
+      noiseGate.connect(compressor);
+      
+      // Create processor for streaming
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      compressor.connect(processor);
+      processor.connect(audioContext.destination);
+
+      // Apply noise gate threshold based on level
+      const noiseGateThreshold = {
+        'off': 0,
+        'low': 0.01,
+        'medium': 0.02,
+        'high': 0.03
+      }[noiseCancellationLevel];
+
+      processor.onaudioprocess = (e) => {
+        const audioData = e.inputBuffer.getChannelData(0);
+        
+        // Apply noise gate: mute audio below threshold
+        const processedData = new Float32Array(audioData.length);
+        for (let i = 0; i < audioData.length; i++) {
+          if (Math.abs(audioData[i]) > noiseGateThreshold) {
+            processedData[i] = audioData[i];
+          } else {
+            processedData[i] = 0; // Silence below threshold
+          }
+        }
+        
+        // Convert to array and send via socket
+        const audioArray = Array.from(processedData);
+        socket.emit('audio_stream', {
+          roomId,
+          audioData: audioArray
+        });
+      };
+
+      peerConnectionRef.current = processor as any;
+
       setIsBroadcasting(true);
       
       // Set current broadcaster info
@@ -92,27 +213,7 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
         username: user?.username || user?.mobileNumber
       });
 
-      // Set up audio streaming via socket
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-
-      processor.onaudioprocess = (e) => {
-        const audioData = e.inputBuffer.getChannelData(0);
-        // Convert to array and send via socket
-        const audioArray = Array.from(audioData);
-        socket.emit('audio_stream', {
-          roomId,
-          audioData: audioArray
-        });
-      };
-
-      peerConnectionRef.current = processor as any;
-
-      console.log('✅ Voice broadcast started with audio streaming');
+      console.log('✅ Voice broadcast started with advanced noise cancellation:', noiseCancellationLevel);
     } catch (error) {
       console.error('❌ Error starting broadcast:', error);
       
@@ -139,11 +240,21 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
       mediaStreamRef.current = null;
     }
 
-    // Close peer connection
+    // Close audio context
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    // Disconnect audio processor
     if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
+      (peerConnectionRef.current as any).disconnect?.();
       peerConnectionRef.current = null;
     }
+
+    // Reset audio nodes
+    noiseGateRef.current = null;
+    compressorRef.current = null;
 
     setIsBroadcasting(false);
     setCurrentBroadcaster(null);
@@ -174,15 +285,38 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
   };
 
   const toggleListen = () => {
-    setIsListening(!isListening);
-    if (audioElementRef.current) {
-      if (isListening) {
-        audioElementRef.current.pause();
-      } else {
-        audioElementRef.current.play();
+    const newListeningState = !isListening;
+    
+    // If starting to listen, check if another room is active
+    if (newListeningState) {
+      if (globalActiveListeningRoom && globalActiveListeningRoom !== roomId) {
+        console.log('⚠️ Stopping broadcast from room:', globalActiveListeningRoom);
+        console.log('🔄 Starting broadcast from room:', roomId);
+        
+        // Stop previous audio context
+        if (globalListeningAudioContext) {
+          globalListeningAudioContext.close();
+          globalListeningAudioContext = null;
+        }
+      }
+      
+      // Set this room as active listening room
+      globalActiveListeningRoom = roomId;
+      console.log('🎯 Active listening room set to:', roomId);
+    } else {
+      // If stopping, clear if this was the active room
+      if (globalActiveListeningRoom === roomId) {
+        globalActiveListeningRoom = null;
+        if (globalListeningAudioContext) {
+          globalListeningAudioContext.close();
+          globalListeningAudioContext = null;
+        }
+        console.log('🎯 Cleared active listening room');
       }
     }
-    console.log('🎧 Listening:', !isListening);
+    
+    setIsListening(newListeningState);
+    console.log('🎧 Listening:', newListeningState);
   };
 
   // Listen for broadcast events from socket
@@ -195,21 +329,30 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
 
     socket.on('voice_broadcast_started', (data: { userId: string; username: string; roomId: string }) => {
       if (data.roomId === roomId && data.userId !== user?.id) {
-        console.log('📻 Broadcast started by:', data.username);
+        console.log('📻 Broadcast started by:', data.username, 'in room:', data.roomId);
+        
+        // Show broadcaster info but DON'T auto-play
         setCurrentBroadcaster({
           userId: data.userId,
           username: data.username
         });
-        setIsListening(true);
-
-        // Initialize audio context for playback
-        audioContext = new AudioContext({ sampleRate: 48000 });
-        console.log('🎧 Audio context initialized for listening');
+        
+        // Initialize audio context but keep paused (user must click Play)
+        if (!audioContext) {
+          audioContext = new AudioContext({ sampleRate: 48000 });
+        }
+        
+        console.log('📻 Broadcast notification received. Click Play to listen.');
       }
     });
 
     socket.on('audio_stream', (data: { roomId: string; audioData: number[] }) => {
-      if (data.roomId === roomId && audioContext && isListening && !isMuted) {
+      // Only play audio if this is the active listening room
+      if (data.roomId === roomId && 
+          data.roomId === globalActiveListeningRoom && 
+          audioContext && 
+          isListening && 
+          !isMuted) {
         try {
           // Convert received audio data back to Float32Array
           const audioData = new Float32Array(data.audioData);
@@ -233,7 +376,7 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
 
     socket.on('voice_broadcast_stopped', (data: { userId: string; roomId: string }) => {
       if (data.roomId === roomId) {
-        console.log('📻 Broadcast stopped');
+        console.log('📻 Broadcast stopped in room:', roomId);
         setCurrentBroadcaster(null);
         setIsListening(false);
         
@@ -241,6 +384,13 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
         if (audioContext) {
           audioContext.close();
           audioContext = null;
+        }
+        
+        // Clear global listening room if it was this room
+        if (globalActiveListeningRoom === roomId) {
+          globalActiveListeningRoom = null;
+          globalListeningAudioContext = null;
+          console.log('🎯 Cleared active listening room');
         }
         
         audioBufferQueue = [];
@@ -253,8 +403,19 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
       socket.off('voice_broadcast_stopped');
       socket.off('audio_stream');
       
+      // Cleanup audio context
       if (audioContext) {
         audioContext.close();
+      }
+      
+      // Clear global listening room if it was this room
+      if (globalActiveListeningRoom === roomId) {
+        globalActiveListeningRoom = null;
+        if (globalListeningAudioContext) {
+          globalListeningAudioContext.close();
+          globalListeningAudioContext = null;
+        }
+        console.log('🧹 Cleanup: Cleared active listening room on unmount');
       }
     };
   }, [socket, roomId, user?.id, isListening, isMuted]);
@@ -274,11 +435,13 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
       isListening,
       currentBroadcaster,
       isMuted,
+      noiseCancellationLevel,
       startBroadcast,
       stopBroadcast,
       toggleBroadcast,
       toggleMute,
       toggleListen,
+      setNoiseCancellationLevel,
       canBroadcast
     }}>
       {children}

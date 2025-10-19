@@ -78,7 +78,7 @@ export default function HomePage() {
           roomId: data.roomId,
           broadcasterName: data.username,
           broadcasterId: data.userId,
-          isListening: true,
+          isListening: false, // Default to paused - user must click Play
           isMuted: false
         });
         return newMap;
@@ -162,8 +162,24 @@ export default function HomePage() {
     setActiveBroadcasts(prev => {
       const newMap = new Map(prev);
       const current = newMap.get(roomId);
+      
       if (current) {
-        newMap.set(roomId, { ...current, isListening: !current.isListening });
+        const newListeningState = !current.isListening;
+        
+        // If starting to listen to this room
+        if (newListeningState) {
+          console.log('🎧 Starting to listen to room:', roomId);
+          
+          // Stop all other broadcasts
+          newMap.forEach((broadcast, otherRoomId) => {
+            if (otherRoomId !== roomId && broadcast.isListening) {
+              console.log('⏹️ Stopping broadcast from room:', otherRoomId);
+              newMap.set(otherRoomId, { ...broadcast, isListening: false });
+            }
+          });
+        }
+        
+        newMap.set(roomId, { ...current, isListening: newListeningState });
       }
       return newMap;
     });

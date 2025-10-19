@@ -4,14 +4,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { ArrowLeft, X, Volume2, VolumeX, Mic, MicOff, MoreVertical, Trash2, MessageSquare, Image as ImageIcon, Play, Pause, Radio } from 'lucide-react';
+import { ArrowLeft, X, Volume2, VolumeX, Mic, MicOff, MoreVertical, Trash2, MessageSquare, Image as ImageIcon, Play, Pause, Radio, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { useSound } from '@/lib/contexts/SoundContext';
@@ -72,7 +72,7 @@ function ChatPageContent() {
   const { socket, connected } = useSocket();
   const { user } = useAuth();
   const { soundEnabled, toggleSound, playMessageSound } = useSound();
-  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute } = useVoiceBroadcast();
+  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute, noiseCancellationLevel, setNoiseCancellationLevel } = useVoiceBroadcast();
   
   // Socket events
   const socketEvents = useSocketEvents({
@@ -139,7 +139,7 @@ function ChatPageContent() {
       if (data.roomId === roomId) {
         console.log('📻 Chat Page - Broadcast started:', data);
         setBroadcastInfo({ userId: data.userId, username: data.username });
-        setBroadcastListening(true);
+        setBroadcastListening(false); // Default to paused - user must click Play
       }
     },
     onVoiceBroadcastStopped: (data: { userId: string; roomId: string }) => {
@@ -167,7 +167,7 @@ function ChatPageContent() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [broadcastInfo, setBroadcastInfo] = useState<{ userId: string; username: string } | null>(null);
-  const [broadcastListening, setBroadcastListening] = useState(true);
+  const [broadcastListening, setBroadcastListening] = useState(false); // Default to paused - user must click Play
   const [broadcastMuted, setBroadcastMuted] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map()); // userId -> username
   const [isTyping, setIsTyping] = useState(false);
@@ -782,15 +782,64 @@ function ChatPageContent() {
                 {connected ? "Connected" : "Disconnected"}
               </Badge>
               {canBroadcast && (
-                <Button
-                  variant={isBroadcasting ? "destructive" : "ghost"}
-                  size="sm"
-                  onClick={toggleBroadcast}
-                  className="h-8 w-8 p-0"
-                  title={isBroadcasting ? "Stop broadcasting" : "Start voice broadcast"}
-                >
-                  <Radio className={`h-4 w-4 ${isBroadcasting ? 'animate-pulse' : ''}`} />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={isBroadcasting ? "destructive" : "ghost"}
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      title={isBroadcasting ? "Broadcasting - Click for options" : "Start voice broadcast"}
+                    >
+                      <Radio className={`h-4 w-4 ${isBroadcasting ? 'animate-pulse' : ''}`} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Broadcast Controls</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={toggleBroadcast}>
+                      <Radio className="h-4 w-4 mr-2" />
+                      {isBroadcasting ? 'Stop Broadcasting' : 'Start Broadcasting'}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">Noise Cancellation</DropdownMenuLabel>
+                    <DropdownMenuItem 
+                      onClick={() => setNoiseCancellationLevel('off')}
+                      className={noiseCancellationLevel === 'off' ? 'bg-accent' : ''}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>Off</span>
+                        {noiseCancellationLevel === 'off' && <span className="text-xs">✓</span>}
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => setNoiseCancellationLevel('low')}
+                      className={noiseCancellationLevel === 'low' ? 'bg-accent' : ''}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>Low</span>
+                        {noiseCancellationLevel === 'low' && <span className="text-xs">✓</span>}
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => setNoiseCancellationLevel('medium')}
+                      className={noiseCancellationLevel === 'medium' ? 'bg-accent' : ''}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>Medium</span>
+                        {noiseCancellationLevel === 'medium' && <span className="text-xs">✓</span>}
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => setNoiseCancellationLevel('high')}
+                      className={noiseCancellationLevel === 'high' ? 'bg-accent' : ''}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>High (Recommended)</span>
+                        {noiseCancellationLevel === 'high' && <span className="text-xs">✓</span>}
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               <Button
                 variant="ghost"

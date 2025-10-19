@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { 
   X, 
   Send, 
@@ -23,7 +23,8 @@ import {
   MessageSquare,
   Play,
   Pause,
-  Radio
+  Radio,
+  Settings
 } from 'lucide-react';
 import AudioRecorder from './AudioRecorder';
 import ImageLightbox from './ImageLightbox';
@@ -87,7 +88,7 @@ export default function ChatWidget({
   const { socket, connected } = useSocket();
   const { user } = useAuth();
   const { soundEnabled, toggleSound, playMessageSound } = useSound();
-  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute } = useVoiceBroadcast();
+  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute, noiseCancellationLevel, setNoiseCancellationLevel } = useVoiceBroadcast();
   
   // Socket events
   const socketEvents = useSocketEvents({
@@ -165,7 +166,7 @@ export default function ChatWidget({
       if (data.roomId === roomId) {
         console.log('📻 ChatWidget - Broadcast started:', data);
         setBroadcastInfo({ userId: data.userId, username: data.username });
-        setBroadcastListening(true);
+        setBroadcastListening(false); // Default to paused - user must click Play
       }
     },
     onVoiceBroadcastStopped: (data: { userId: string; roomId: string }) => {
@@ -194,7 +195,7 @@ export default function ChatWidget({
   const [displayRoomId, setDisplayRoomId] = useState<string>(roomId);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [broadcastInfo, setBroadcastInfo] = useState<{ userId: string; username: string } | null>(null);
-  const [broadcastListening, setBroadcastListening] = useState(true);
+  const [broadcastListening, setBroadcastListening] = useState(false); // Default to paused - user must click Play
   const [broadcastMuted, setBroadcastMuted] = useState(false);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -829,15 +830,64 @@ export default function ChatWidget({
               })()}
             </Badge>
             {canBroadcast && (
-              <Button
-                variant={isBroadcasting ? "destructive" : "ghost"}
-                size="sm"
-                onClick={toggleBroadcast}
-                className="h-8 w-8 p-0"
-                title={isBroadcasting ? "Stop broadcasting" : "Start voice broadcast"}
-              >
-                <Radio className={`h-4 w-4 ${isBroadcasting ? 'animate-pulse' : ''}`} />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={isBroadcasting ? "destructive" : "ghost"}
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    title={isBroadcasting ? "Broadcasting - Click for options" : "Start voice broadcast"}
+                  >
+                    <Radio className={`h-4 w-4 ${isBroadcasting ? 'animate-pulse' : ''}`} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Broadcast Controls</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={toggleBroadcast}>
+                    <Radio className="h-4 w-4 mr-2" />
+                    {isBroadcasting ? 'Stop Broadcasting' : 'Start Broadcasting'}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Noise Cancellation</DropdownMenuLabel>
+                  <DropdownMenuItem 
+                    onClick={() => setNoiseCancellationLevel('off')}
+                    className={noiseCancellationLevel === 'off' ? 'bg-accent' : ''}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>Off</span>
+                      {noiseCancellationLevel === 'off' && <span className="text-xs">✓</span>}
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setNoiseCancellationLevel('low')}
+                    className={noiseCancellationLevel === 'low' ? 'bg-accent' : ''}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>Low</span>
+                      {noiseCancellationLevel === 'low' && <span className="text-xs">✓</span>}
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setNoiseCancellationLevel('medium')}
+                    className={noiseCancellationLevel === 'medium' ? 'bg-accent' : ''}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>Medium</span>
+                      {noiseCancellationLevel === 'medium' && <span className="text-xs">✓</span>}
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setNoiseCancellationLevel('high')}
+                    className={noiseCancellationLevel === 'high' ? 'bg-accent' : ''}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>High (Recommended)</span>
+                      {noiseCancellationLevel === 'high' && <span className="text-xs">✓</span>}
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <Button
               variant="ghost"
