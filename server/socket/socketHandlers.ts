@@ -120,6 +120,13 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
 
     // Handle joining room channels
     socket.on('join_room', async (roomId: string) => {
+      // Validate roomId
+      if (!roomId || roomId === 'undefined' || roomId === 'null') {
+        console.log(`❌ Invalid roomId received: ${roomId}`);
+        socket.emit('join_room_error', { error: 'Invalid room ID' });
+        return;
+      }
+
       socket.join(`room_${roomId}`);
       console.log(`User ${socket.userId} joined room ${roomId}`);
       
@@ -135,6 +142,12 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
 
     // Handle leaving room channels
     socket.on('leave_room', (roomId: string) => {
+      // Validate roomId
+      if (!roomId || roomId === 'undefined' || roomId === 'null') {
+        console.log(`❌ Invalid roomId received for leave_room: ${roomId}`);
+        return;
+      }
+
       socket.leave(`room_${roomId}`);
       console.log(`User ${socket.userId} left room ${roomId}`);
       
@@ -153,6 +166,12 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
 
     // Handle typing indicators for rooms
     socket.on('user_typing', (data) => {
+      // Validate roomId
+      if (!data.roomId || data.roomId === 'undefined' || data.roomId === 'null') {
+        console.log(`❌ Invalid roomId received for user_typing: ${data.roomId}`);
+        return;
+      }
+
       console.log('⌨️ Received typing event:', {
         from: socket.userId,
         roomId: data.roomId,
@@ -517,6 +536,12 @@ export const sendNotificationToRoom = (io: SocketIOServer, roomId: string, notif
 // Helper function to send room members online status
 export const sendRoomMembersStatus = async (io: SocketIOServer, roomId: string) => {
   try {
+    // Validate roomId before proceeding
+    if (!roomId || roomId === 'undefined' || roomId === 'null') {
+      console.log(`❌ Invalid roomId provided to sendRoomMembersStatus: ${roomId}`);
+      return;
+    }
+
     // Import RoomModel here to avoid circular dependency
     const roomSchema = await import('../database/schemas/room.schema');
     const RoomModel = roomSchema.default;

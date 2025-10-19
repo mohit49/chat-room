@@ -64,6 +64,7 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [username, setUsername] = useState('');
+  const [originalUsername, setOriginalUsername] = useState(''); // Track original username
   const [isUsernameValid, setIsUsernameValid] = useState(true);
   const [profile, setProfile] = useState<UserProfile>({
     birthDate: '',
@@ -93,7 +94,9 @@ export default function ProfilePage() {
         const response = await api.getProfile(token);
         if (response.success && response.user) {
           setMobileNumber(response.user.mobileNumber);
-          setUsername(response.user.username || '');
+          const currentUsername = response.user.username || '';
+          setUsername(currentUsername);
+          setOriginalUsername(currentUsername); // Store original username
           // Ensure we load the complete profile including profilePicture
           setProfile({
             birthDate: response.user.profile.birthDate || '',
@@ -145,8 +148,19 @@ export default function ProfilePage() {
       return;
     }
 
-    // Update username first if it's different
-    if (username && username !== '') {
+    // Update username first if it's different from original and not empty
+    const hasUsernameChanged = username !== originalUsername;
+    const isUsernameNotEmpty = username && username.trim() !== '';
+    
+    console.log('Username update check:', {
+      username,
+      originalUsername,
+      hasUsernameChanged,
+      isUsernameNotEmpty,
+      willUpdate: hasUsernameChanged && isUsernameNotEmpty
+    });
+
+    if (hasUsernameChanged && isUsernameNotEmpty) {
       if (!isUsernameValid) {
         setError('Please fix username errors before saving');
         setSaving(false);
@@ -154,35 +168,57 @@ export default function ProfilePage() {
       }
 
       try {
-        const usernameResponse = await api.updateUsername(token, username);
+        console.log('Calling updateUsername API with:', username);
+        const usernameResponse = await api.updateUsername(token, username.trim());
+        
+        console.log('Username update response:', usernameResponse);
+        
         if (usernameResponse.success && usernameResponse.user) {
           // Update local username state
-          setUsername(usernameResponse.user.username || username);
+          const newUsername = usernameResponse.user.username || username;
+          setUsername(newUsername);
+          setOriginalUsername(newUsername); // Update original username
+          console.log('Username updated successfully to:', newUsername);
+        } else {
+          console.error('Username update failed:', usernameResponse.error);
+          setError(usernameResponse.error || 'Failed to update username');
+          setSaving(false);
+          return;
         }
       } catch (err: any) {
+        console.error('Username update exception:', err);
+        console.error('Error details:', {
+          message: err.message,
+          stack: err.stack,
+          response: err.response
+        });
         setError(err.message || 'Failed to update username');
         setSaving(false);
         return;
       }
+    } else {
+      console.log('Skipping username update - no changes or empty username');
     }
 
     try {
       console.log('=== PROFILE UPDATE DEBUG ===');
       console.log('Profile Picture State:', profile.profilePicture);
-      console.log('Update Data:', {
-        birthDate: profile.birthDate,
-        age: calculatedAge,
-        gender: profile.gender as 'male' | 'female' | 'other' | '',
-        profilePicture: profile.profilePicture
-      });
       
-      const response = await api.updateProfile(token, {
+      const updateData = {
         birthDate: profile.birthDate,
         age: calculatedAge,
         gender: profile.gender as 'male' | 'female' | 'other' | '',
         profilePicture: profile.profilePicture
-      } as any);
+      };
+      
+      console.log('Update Data being sent:', JSON.stringify(updateData, null, 2));
+      console.log('Token:', token ? 'Present' : 'Missing');
+      console.log('Calling API endpoint: /user/profile');
+      
+      const response = await api.updateProfile(token, updateData as any);
 
+      console.log('Profile update response:', response);
+      
       if (response.success && response.user) {
         // Update local state with the response from server
         setProfile({
@@ -198,10 +234,17 @@ export default function ProfilePage() {
         // Profile updated successfully - user can manually navigate to home
         console.log('Profile updated successfully');
       } else {
+        console.error('Profile update failed:', response.error);
         setError(response.error || 'Failed to update profile');
       }
-    } catch (err) {
-      setError('Failed to update profile');
+    } catch (err: any) {
+      console.error('Profile update exception:', err);
+      console.error('Error details:', {
+        message: err.message,
+        stack: err.stack,
+        response: err.response
+      });
+      setError(err.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }

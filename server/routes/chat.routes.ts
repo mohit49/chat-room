@@ -19,6 +19,12 @@ router.post('/send',
   chatController.sendMessage
 );
 
+// Delete room message
+router.delete('/rooms/:roomId/messages/:messageId',
+  authenticateToken,
+  chatController.deleteMessage
+);
+
 // Upload chat image
 router.post('/upload-image',
   authenticateToken,

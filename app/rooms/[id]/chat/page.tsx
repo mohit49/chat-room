@@ -4,17 +4,22 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { ArrowLeft, X, Volume2, VolumeX, Mic, MicOff } from 'lucide-react';
+import { ArrowLeft, X, Volume2, VolumeX, Mic, MicOff, MoreVertical, Trash2, MessageSquare, Image as ImageIcon, Play, Pause, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { useSound } from '@/lib/contexts/SoundContext';
 import { useVoiceBroadcast, VoiceBroadcastProvider } from '@/lib/contexts/VoiceBroadcastContext';
+import AudioRecorder from '@/components/chat/AudioRecorder';
+import ImageLightbox from '@/components/chat/ImageLightbox';
+import { ImageCompressor } from '@/lib/utils/imageCompression';
+import { openChat } from '@/components/layout/GlobalChatManager';
 
 interface ChatMessage {
   id: string;
@@ -22,8 +27,9 @@ interface ChatMessage {
   userId: string;
   username: string;
   message: string;
-  messageType: 'text' | 'image';
+  messageType: 'text' | 'image' | 'audio';
   imageUrl?: string;
+  audioUrl?: string;
   timestamp: string;
   userProfilePicture?: {
     type: 'upload' | 'avatar';
@@ -124,6 +130,10 @@ function ChatPageContent() {
       console.log('👥 Received room members status:', members);
       setOnlineUsers(members);
       setOnlineUsersLoading(false);
+    },
+    onMessageDeleted: (data: { messageId: string; deletedBy?: string }) => {
+      console.log('🗑️ Chat Page - Message deleted:', data);
+      setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
     }
   }, `ChatPage-${roomId}`);
   
@@ -138,6 +148,10 @@ function ChatPageContent() {
   const [onlineUsersLoading, setOnlineUsersLoading] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [showImageLightbox, setShowImageLightbox] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map()); // userId -> username
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -145,6 +159,7 @@ function ChatPageContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const isLoadingMoreRef = useRef(false);
   const shouldAutoScrollRef = useRef(true);
   const hasLoadedMessagesRef = useRef(false);
@@ -367,7 +382,7 @@ function ChatPageContent() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() && !imageFile) return;
+    if (!newMessage.trim() && !imageFile && !audioFile) return;
     if (!canSendMessages) return;
 
     try {
@@ -377,26 +392,76 @@ function ChatPageContent() {
         messageType: 'text'
       };
 
+      // Handle audio upload
+      if (audioFile) {
+        const formData = new FormData();
+        formData.append('audio', audioFile);
+        formData.append('roomId', roomId);
+
+        const uploadResponse = await api.uploadChatAudio(formData);
+        if (uploadResponse.success) {
+          messageData = {
+            roomId,
+            message: newMessage.trim() || '🎵 Audio',
+            messageType: 'audio',
+            audioUrl: uploadResponse.data?.audioUrl
+          };
+        } else {
+          alert('Failed to upload audio');
+          return;
+        }
+      }
       // Handle image upload
-      if (imageFile) {
+      else if (imageFile) {
         const formData = new FormData();
         formData.append('image', imageFile);
         formData.append('roomId', roomId);
         
         const uploadResponse = await api.uploadChatImage(formData);
         if (uploadResponse.success) {
-          messageData.messageType = 'image';
-          messageData.imageUrl = uploadResponse.data?.imageUrl;
+          messageData = {
+            roomId,
+            message: newMessage.trim() || '📷 Image',
+            messageType: 'image',
+            imageUrl: uploadResponse.data?.imageUrl
+          };
+        } else {
+          alert('Failed to upload image');
+          return;
         }
       }
 
       const response = await api.sendMessage(messageData);
       if (response.success) {
+        // Optimistically add the message to UI immediately
+        const responseMessage = response.message || response.data?.message;
+        const newMessageData: ChatMessage = {
+          id: responseMessage?.id || `temp-${Date.now()}`,
+          roomId: roomId,
+          userId: user?.id || '',
+          username: user?.username || user?.mobileNumber || 'You',
+          message: messageData.message,
+          messageType: messageData.messageType || 'text',
+          imageUrl: messageData.imageUrl,
+          audioUrl: messageData.audioUrl,
+          timestamp: new Date().toISOString(),
+          userProfilePicture: user?.profile?.profilePicture
+        };
+
+        // Add message to local state immediately for instant feedback
+        setMessages(prev => {
+          // Check if it already exists (in case socket event arrived first)
+          const exists = prev.some(msg => msg.id === newMessageData.id);
+          if (exists) return prev;
+          return [...prev, newMessageData];
+        });
+        
+        scrollToBottom();
+        
         setNewMessage('');
         setImageFile(null);
         setImagePreview(null);
-        // The API call already handles real-time emission via socket
-        // No need to emit separately to avoid duplicates
+        setAudioFile(null);
       } else {
         alert('Failed to send message');
       }
@@ -406,19 +471,131 @@ function ChatPageContent() {
     }
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        alert('Image size must be less than 5MB');
+    if (!file) return;
+
+    try {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file');
         return;
       }
-      setImageFile(file);
+
+      // Check if compression is needed
+      const shouldCompress = ImageCompressor.shouldCompress(file, 500); // 500KB threshold
+      
+      let processedFile = file;
+      
+      if (shouldCompress) {
+        console.log('📸 Compressing image...');
+        // Compress image: max 800x600, 80% quality
+        processedFile = await ImageCompressor.compressImage(file, 800, 600, 0.8);
+      }
+
+      // Final size check after compression
+      if (processedFile.size > 5 * 1024 * 1024) { // 5MB absolute limit
+        alert('Image size is still too large after compression. Please choose a smaller image.');
+        return;
+      }
+
+      setImageFile(processedFile);
+      
+      // Create preview from processed file
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processedFile);
+      
+    } catch (error) {
+      console.error('Error processing image:', error);
+      alert('Failed to process image. Please try again.');
+    }
+  };
+
+  const handleAudioRecordingComplete = (audioBlob: Blob) => {
+    const audioFile = new File([audioBlob], `recording-${Date.now()}.wav`, { type: 'audio/wav' });
+    setAudioFile(audioFile);
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!window.confirm('Are you sure you want to delete this message? This will delete it for everyone.')) {
+      return;
+    }
+
+    try {
+      // Optimistically remove from UI
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+
+      // Delete via API
+      const response = await api.deleteRoomMessage(roomId, messageId);
+      
+      if (!response.success) {
+        // If failed, refetch messages to restore
+        fetchMessages();
+        alert('Failed to delete message');
+      }
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      fetchMessages(); // Restore messages
+      alert('Failed to delete message');
+    }
+  };
+
+  const handleMessagePrivately = (message: ChatMessage) => {
+    // Open DirectMessageWidget with the message sender
+    openChat({
+      id: message.userId,
+      username: message.username,
+      profilePicture: message.userProfilePicture
+    });
+  };
+
+  const getImageMessages = () => {
+    return messages
+      .filter(msg => msg.messageType === 'image' && msg.imageUrl)
+      .map(msg => ({
+        id: msg.id,
+        imageUrl: msg.imageUrl!,
+        message: msg.message,
+        timestamp: msg.timestamp,
+        senderUsername: msg.username
+      }));
+  };
+
+  const handleImageClick = (imageUrl: string) => {
+    const imageMessages = getImageMessages();
+    const imageIndex = imageMessages.findIndex(img => img.imageUrl === imageUrl);
+    
+    if (imageIndex !== -1) {
+      setCurrentImageIndex(imageIndex);
+      setShowImageLightbox(true);
+    }
+  };
+
+  const handleAudioPlay = (messageId: string, audioUrl: string) => {
+    const audioElement = audioRefs.current.get(messageId);
+    
+    if (!audioElement) {
+      // Create new audio element if it doesn't exist
+      const audio = new Audio(audioUrl);
+      audioRefs.current.set(messageId, audio);
+      
+      audio.onplay = () => setPlayingAudio(messageId);
+      audio.onpause = () => setPlayingAudio(null);
+      audio.onended = () => setPlayingAudio(null);
+      
+      audio.play();
+    } else {
+      // Toggle play/pause
+      if (playingAudio === messageId) {
+        audioElement.pause();
+        setPlayingAudio(null);
+      } else {
+        audioElement.play();
+        setPlayingAudio(messageId);
+      }
     }
   };
 
@@ -587,6 +764,17 @@ function ChatPageContent() {
               <Badge variant={connected ? "default" : "destructive"} className="text-xs">
                 {connected ? "Connected" : "Disconnected"}
               </Badge>
+              {canBroadcast && (
+                <Button
+                  variant={isBroadcasting ? "destructive" : "ghost"}
+                  size="sm"
+                  onClick={toggleBroadcast}
+                  className="h-8 w-8 p-0"
+                  title={isBroadcasting ? "Stop broadcasting" : "Start voice broadcast"}
+                >
+                  <Radio className={`h-4 w-4 ${isBroadcasting ? 'animate-pulse' : ''}`} />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -667,9 +855,11 @@ function ChatPageContent() {
                   
                   {messages.map((message) => {
                     const isOwnMessage = message.userId === user?.id;
+                    const isAudioMessage = message.messageType === 'audio';
                     
                     return (
-                      <div key={message.id} className={`flex items-start space-x-2 sm:space-x-4 ${isOwnMessage ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                      <div key={message.id} className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} group`}>
+                        <div className={`flex items-start space-x-2 sm:space-x-3 max-w-[85%] sm:max-w-[70%] ${isOwnMessage ? 'flex-row-reverse space-x-reverse' : ''}`}>
                         <div className="relative flex-shrink-0">
                           <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
                             <AvatarImage
@@ -704,31 +894,99 @@ function ChatPageContent() {
                               {formatTime(message.timestamp)}
                             </span>
                           </div>
-                          <div className={`mt-1 ${isOwnMessage ? 'text-right' : ''}`}>
-                            {message.messageType === 'image' ? (
-                              <div className={`space-y-2 ${isOwnMessage ? 'ml-auto max-w-xs sm:max-w-md' : ''}`}>
+                            <div className={`rounded-lg ${isAudioMessage ? 'w-full' : ''} ${
+                              isOwnMessage 
+                                ? 'bg-primary text-primary-foreground' 
+                                : 'bg-muted'
+                            } relative`}>
+                              <div className="flex items-start gap-1">
+                                <div className="flex-1 p-3">
+                                {message.messageType === 'image' && message.imageUrl ? (
+                                  <div>
                                 <img
                                   src={message.imageUrl}
-                                  alt="Shared image"
-                                  className="max-w-full sm:max-w-md rounded-lg shadow-sm"
-                                />
-                                {message.message && (
-                                  <p className={`text-xs sm:text-sm break-words ${isOwnMessage ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
-                                    {message.message}
-                                  </p>
+                                      alt="Chat image"
+                                      className="max-w-full h-auto rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity"
+                                      onClick={() => handleImageClick(message.imageUrl!)}
+                                    />
+                                    {message.message && message.message !== '📷 Image' && (
+                                      <p className="text-xs sm:text-sm">{message.message}</p>
+                                )}
+                              </div>
+                            ) : message.messageType === 'audio' && message.audioUrl ? (
+                              <div className="w-full">
+                                <div className={`flex items-center gap-3 rounded-lg p-3 mb-2 ${
+                                  isOwnMessage ? 'bg-primary-foreground/10' : 'bg-primary/10'
+                                }`}>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleAudioPlay(message.id, message.audioUrl!)}
+                                    className={`h-12 w-12 p-0 rounded-full ${
+                                      isOwnMessage ? 'bg-primary-foreground/30 hover:bg-primary-foreground/40' : 'bg-primary/30 hover:bg-primary/40'
+                                    }`}
+                                  >
+                                    {playingAudio === message.id ? (
+                                      <Pause className="h-6 w-6" />
+                                    ) : (
+                                      <Play className="h-6 w-6 ml-0.5" />
+                                    )}
+                                  </Button>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <Mic className="h-4 w-4 opacity-70" />
+                                      <span className="text-sm font-medium opacity-90">Audio Message</span>
+                                    </div>
+                                    <span className="text-xs opacity-60">Click to play</span>
+                                  </div>
+                                </div>
+                                {message.message && message.message !== '🎵 Audio' && (
+                                  <p className="text-xs sm:text-sm mt-1">{message.message}</p>
                                 )}
                               </div>
                             ) : (
-                              <div className={`inline-block p-3 rounded-lg max-w-xs sm:max-w-md ${
-                                isOwnMessage 
-                                  ? 'bg-primary text-primary-foreground ml-auto' 
-                                  : 'bg-muted'
-                              }`}>
                                 <p className="text-xs sm:text-sm break-words">
                                   {message.message}
                                 </p>
+                                )}
                               </div>
-                            )}
+                                
+                                {/* Three-dot dropdown menu - inline right to message text */}
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className={`h-6 w-6 p-0 mt-1 mr-1 shrink-0 self-start ${
+                                        isOwnMessage ? 'text-primary-foreground hover:bg-primary-foreground/20' : 'hover:bg-muted-foreground/10'
+                                      }`}
+                                    >
+                                      <MoreVertical className="h-3 w-3" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    {isOwnMessage && (
+                                      <DropdownMenuItem
+                                        onClick={() => handleDeleteMessage(message.id)}
+                                        className="text-red-600 hover:text-red-700 cursor-pointer"
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete Message
+                                      </DropdownMenuItem>
+                                    )}
+                                    {!isOwnMessage && (
+                                      <DropdownMenuItem
+                                        onClick={() => handleMessagePrivately(message)}
+                                        className="cursor-pointer"
+                                      >
+                                        <MessageSquare className="h-4 w-4 mr-2" />
+                                        Message Privately
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -779,8 +1037,25 @@ function ChatPageContent() {
           <div className="px-3 sm:px-4 py-3 sm:py-4">
             <form onSubmit={handleSendMessage} className="flex items-end space-x-2 sm:space-x-4 max-w-4xl mx-auto">
               <div className="flex-1 min-w-0">
+                {(imagePreview || audioFile) && (
+                  <div className="mb-2 sm:mb-3">
+                    {audioFile && (
+                      <div className="mb-2 p-2 bg-muted rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs sm:text-sm">🎵 Audio message ready to send</div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setAudioFile(null)}
+                            className="h-6 w-6 p-0"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                 {imagePreview && (
-                  <div className="mb-2 sm:mb-3 relative">
+                      <div className="relative inline-block">
                     <img
                       src={imagePreview}
                       alt="Preview"
@@ -794,6 +1069,8 @@ function ChatPageContent() {
                     >
                       <X className="h-2 w-2 sm:h-3 sm:w-3" />
                     </Button>
+                      </div>
+                    )}
                   </div>
                 )}
                 <Input
@@ -816,27 +1093,16 @@ function ChatPageContent() {
                   variant="outline"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
-                  className="h-9 w-9 sm:h-10 sm:w-10 p-0"
+                  className="h-9 w-9 sm:h-10 sm:w-10 p-0 border-2 border-blue-500 hover:bg-blue-50 bg-white shadow-md"
+                  title="Upload image"
                 >
-                  <span className="text-sm sm:text-base">📷</span>
+                  <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                 </Button>
-                {canBroadcast && (
-                  <Button
-                    type="button"
-                    variant={isBroadcasting ? "destructive" : "outline"}
-                    size="sm"
-                    onClick={toggleBroadcast}
-                    className="h-9 w-9 sm:h-10 sm:w-10 p-0"
-                    title={isBroadcasting ? "Stop broadcasting" : "Start voice broadcast"}
-                  >
-                    {isBroadcasting ? (
-                      <MicOff className="h-4 w-4 sm:h-5 sm:w-5" />
-                    ) : (
-                      <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
-                    )}
-                  </Button>
-                )}
-                <Button type="submit" size="sm" className="h-9 px-3 sm:h-10 sm:px-6 text-xs sm:text-sm">
+                <AudioRecorder
+                  onRecordingComplete={handleAudioRecordingComplete}
+                  disabled={!canSendMessages}
+                />
+                <Button type="submit" size="sm" className="h-9 px-3 sm:h-10 sm:px-6 text-xs sm:text-sm" disabled={!newMessage.trim() && !imageFile && !audioFile}>
                   Send
                 </Button>
               </div>
@@ -844,6 +1110,14 @@ function ChatPageContent() {
           </div>
         </div>
       )}
+
+      {/* Image Lightbox */}
+      <ImageLightbox
+        isOpen={showImageLightbox}
+        onClose={() => setShowImageLightbox(false)}
+        images={getImageMessages()}
+        currentImageIndex={currentImageIndex}
+      />
     </div>
   );
 }

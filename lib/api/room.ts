@@ -110,10 +110,15 @@ export const roomApi = {
   },
 
   // Add a member to the room
-  addMember: async (roomId: string, username: string) => {
-    const response = await apiClient.post(`/rooms/${roomId}/members`, {
-      username
-    });
+  addMember: async (roomId: string, usernameOrMobile: string) => {
+    // Determine if it's a mobile number or username
+    const isMobileNumber = /^\+?[0-9]{10,15}$/.test(usernameOrMobile);
+    
+    const response = await apiClient.post(`/rooms/${roomId}/members`, 
+      isMobileNumber 
+        ? { mobileNumber: usernameOrMobile }
+        : { username: usernameOrMobile }
+    );
     return response;
   },
 

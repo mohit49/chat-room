@@ -55,15 +55,18 @@ export const chatController = {
 
   async sendMessage(req: Request, res: Response) {
     try {
-      const { roomId, message, messageType, imageUrl } = req.body;
+      const { roomId, message, messageType, imageUrl, audioUrl } = req.body;
       const userId = req.userId;
 
       console.log('📨 Chat controller received message:', {
         roomId,
         userId,
-        message: message?.substring(0, 50) + '...',
+        message,
         messageType,
-        hasImageUrl: !!imageUrl
+        hasImageUrl: !!imageUrl,
+        hasAudioUrl: !!audioUrl,
+        imageUrl,
+        audioUrl
       });
 
       if (!userId) {
@@ -76,7 +79,8 @@ export const chatController = {
         userId,
         message,
         messageType,
-        imageUrl
+        imageUrl,
+        audioUrl
       });
 
       console.log('📤 Chat service result:', {
@@ -165,6 +169,35 @@ export const chatController = {
       }
     } catch (error) {
       console.error('Error uploading audio:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  },
+
+  async deleteMessage(req: Request, res: Response) {
+    try {
+      const { roomId, messageId } = req.params;
+      const userId = req.userId;
+
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+
+      const result = await chatService.deleteMessage(roomId, messageId, userId);
+
+      if (result.success) {
+        // Broadcast deletion to room via socket
+        const { io } = await import('../index');
+        io.to(`room_${roomId}`).emit('message_deleted', { messageId, deletedBy: userId });
+
+        res.json({
+          success: true,
+          message: 'Message deleted successfully'
+        });
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error('Error deleting message:', error);
       res.status(500).json({ success: false, error: 'Internal server error' });
     }
   }

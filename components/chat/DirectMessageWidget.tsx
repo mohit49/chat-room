@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { X, Send, Loader2, MessageCircle, Image as ImageIcon, Volume2, VolumeX, Trash2, MoreVertical } from 'lucide-react';
+import { X, Send, Loader2, MessageCircle, Image as ImageIcon, Volume2, VolumeX, Trash2, MoreVertical, Play, Pause, Mic } from 'lucide-react';
 import AudioRecorder from './AudioRecorder';
 import ImageLightbox from './ImageLightbox';
 import { ImageCompressor } from '@/lib/utils/imageCompression';
@@ -144,9 +144,11 @@ export default function DirectMessageWidget({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showImageLightbox, setShowImageLightbox] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   // Fetch messages when component opens
   useEffect(() => {
@@ -441,6 +443,31 @@ export default function DirectMessageWidget({
     }
   };
 
+  const handleAudioPlay = (messageId: string, audioUrl: string) => {
+    const audioElement = audioRefs.current.get(messageId);
+    
+    if (!audioElement) {
+      // Create new audio element if it doesn't exist
+      const audio = new Audio(audioUrl);
+      audioRefs.current.set(messageId, audio);
+      
+      audio.onplay = () => setPlayingAudio(messageId);
+      audio.onpause = () => setPlayingAudio(null);
+      audio.onended = () => setPlayingAudio(null);
+      
+      audio.play();
+    } else {
+      // Toggle play/pause
+      if (playingAudio === messageId) {
+        audioElement.pause();
+        setPlayingAudio(null);
+      } else {
+        audioElement.play();
+        setPlayingAudio(messageId);
+      }
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setNewMessage(value);
@@ -601,7 +628,7 @@ export default function DirectMessageWidget({
 
         <CardContent className="flex-1 p-0 flex flex-col overflow-hidden">
           <ScrollArea ref={scrollAreaRef} className="flex-1">
-            <div className="p-4 pb-20">
+            <div className="p-4 pb-32">
             {loading ? (
               <div className="flex items-center justify-center h-32">
                 <Loader2 className="h-6 w-6 animate-spin" />
@@ -658,12 +685,33 @@ export default function DirectMessageWidget({
                           </div>
                         ) : message.messageType === 'audio' && message.audioUrl ? (
                           <div className="w-full">
-                            <audio controls className="w-full mb-2 min-h-[40px]">
-                              <source src={message.audioUrl} type="audio/wav" />
-                              Your browser does not support the audio element.
-                            </audio>
+                            <div className={`flex items-center gap-3 rounded-lg p-3 mb-2 ${
+                              isOwnMessage ? 'bg-primary-foreground/10' : 'bg-primary/10'
+                            }`}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleAudioPlay(message.id, message.audioUrl!)}
+                                className={`h-12 w-12 p-0 rounded-full ${
+                                  isOwnMessage ? 'bg-primary-foreground/30 hover:bg-primary-foreground/40' : 'bg-primary/30 hover:bg-primary/40'
+                                }`}
+                              >
+                                {playingAudio === message.id ? (
+                                  <Pause className="h-6 w-6" />
+                                ) : (
+                                  <Play className="h-6 w-6 ml-0.5" />
+                                )}
+                              </Button>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <Mic className="h-4 w-4 opacity-70" />
+                                  <span className="text-sm font-medium opacity-90">Audio Message</span>
+                                </div>
+                                <span className="text-xs opacity-60">Click to play</span>
+                              </div>
+                            </div>
                             {message.message && message.message !== '🎵 Audio' && (
-                              <p className="text-sm">{message.message}</p>
+                              <p className="text-sm mt-1">{message.message}</p>
                             )}
                           </div>
                         ) : (
@@ -696,36 +744,36 @@ export default function DirectMessageWidget({
 
           <div className="p-4 border-t absolute bottom-0 left-0 right-0 z-10 bg-muted/50 rounded-b-lg">
             {(audioFile || imagePreview) && (
-              <div className="mb-2">
+              <div className="mb-2 flex gap-2">
                 {audioFile && (
-                  <div className="mb-2 p-2 bg-muted rounded-lg">
+                  <div className="flex-1 p-2 bg-muted rounded-lg">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm">🎵 Audio message ready to send</div>
+                      <div className="text-xs">🎵 Audio ready</div>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => setAudioFile(null)}
-                        className="h-6 w-6 p-0"
+                        className="h-5 w-5 p-0"
                       >
-                        ×
+                        <X className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
                 )}
                 {imagePreview && (
-                  <div className="mb-2 relative">
+                  <div className="relative">
                     <img
                       src={imagePreview}
                       alt="Preview"
-                      className="w-20 h-20 object-cover rounded-lg"
+                      className="w-16 h-16 object-cover rounded-lg"
                     />
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={removeImage}
-                      className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      className="absolute -top-1 -right-1 h-5 w-5 p-0 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      ×
+                      <X className="h-2 w-2" />
                     </Button>
                   </div>
                 )}

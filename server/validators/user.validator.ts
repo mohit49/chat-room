@@ -5,6 +5,7 @@ export const updateProfileSchema = z.object({
     birthDate: z.string().optional(),
     age: z.number().min(0).max(150).optional(),
     gender: z.enum(['male', 'female', 'other', '']).optional(),
+    username: z.string().optional(), // Explicitly allow username but make it optional
     profilePicture: z.object({
       type: z.enum(['upload', 'avatar']),
       url: z.string().optional(),

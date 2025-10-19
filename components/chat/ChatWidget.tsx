@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { 
   X, 
   Send, 
@@ -17,7 +18,12 @@ import {
   Volume2,
   VolumeX,
   Mic,
-  MicOff
+  MicOff,
+  Trash2,
+  MessageSquare,
+  Play,
+  Pause,
+  Radio
 } from 'lucide-react';
 import AudioRecorder from './AudioRecorder';
 import ImageLightbox from './ImageLightbox';
@@ -28,6 +34,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useSound } from '@/lib/contexts/SoundContext';
 import { useVoiceBroadcast } from '@/lib/contexts/VoiceBroadcastContext';
 import { api } from '@/lib/api';
+import { openChat } from '@/components/layout/GlobalChatManager';
 
 interface ChatMessage {
   id: string;
@@ -85,7 +92,16 @@ export default function ChatWidget({
   // Socket events
   const socketEvents = useSocketEvents({
     onNewMessage: (message: ChatMessage) => {
-      console.log('📨 ChatWidget - Received new message:', message);
+      console.log('📨 ChatWidget - Received new message:', {
+        id: message.id,
+        messageType: message.messageType,
+        hasAudioUrl: !!message.audioUrl,
+        audioUrl: message.audioUrl,
+        hasImageUrl: !!message.imageUrl,
+        imageUrl: message.imageUrl,
+        roomId: message.roomId
+      });
+      
       if (message.roomId === roomId) {
         setMessages(prev => [...prev, message]);
         
@@ -140,6 +156,10 @@ export default function ChatWidget({
         clearTimeout(roomMembersTimeoutRef.current);
         roomMembersTimeoutRef.current = null;
       }
+    },
+    onMessageDeleted: (data: { messageId: string; deletedBy?: string }) => {
+      console.log('🗑️ ChatWidget - Message deleted:', data);
+      setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
     }
   }, `ChatWidget-${roomId}`);
   
@@ -158,6 +178,8 @@ export default function ChatWidget({
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map()); // userId -> username
   const [isTyping, setIsTyping] = useState(false);
   const [displayRoomId, setDisplayRoomId] = useState<string>(roomId);
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesStartRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -190,7 +212,12 @@ export default function ChatWidget({
         success: response.success,
         messageCount: response.data?.messages?.length || 0,
         pagination: response.data?.pagination,
-        messages: response.data?.messages
+        hasAudioMessages: response.data?.messages?.filter((m: any) => m.messageType === 'audio').length || 0,
+        audioMessages: response.data?.messages?.filter((m: any) => m.messageType === 'audio').map((m: any) => ({
+          id: m.id,
+          hasAudioUrl: !!m.audioUrl,
+          audioUrl: m.audioUrl
+        }))
       });
       
       if (response.success) {
@@ -230,6 +257,12 @@ export default function ChatWidget({
   }, [roomId]);
 
   const joinRoom = useCallback(() => {
+    // Validate roomId before attempting to join
+    if (!roomId || roomId === 'undefined') {
+      console.log('❌ ChatWidget - Invalid roomId, cannot join room:', roomId);
+      return;
+    }
+
     if (socket && connected) {
       console.log('🔌 ChatWidget - Joining room:', roomId);
       socketEvents.emit('join_room', roomId);
@@ -249,7 +282,7 @@ export default function ChatWidget({
   }, [socket, connected, roomId, onlineUsers.length, socketEvents]);
 
   useEffect(() => {
-    if (isOpen && roomId && !hasLoadedMessagesRef.current) {
+    if (isOpen && roomId && roomId !== 'undefined' && !hasLoadedMessagesRef.current) {
       console.log('🔌 ChatWidget: Opening chat for room:', roomId);
       hasLoadedMessagesRef.current = true;
       fetchMessages();
@@ -258,7 +291,7 @@ export default function ChatWidget({
     
     // Cleanup when room changes or chat closes
     return () => {
-      if (socket && connected && roomId) {
+      if (socket && connected && roomId && roomId !== 'undefined') {
         console.log('🔌 ChatWidget: Leaving room:', roomId);
         socketEvents.emit('leave_room', roomId);
         hasLoadedMessagesRef.current = false;
@@ -363,23 +396,34 @@ export default function ChatWidget({
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    console.log('🎵 Send message check:', {
+      hasMessage: !!newMessage.trim(),
+      hasImageFile: !!imageFile,
+      hasAudioFile: !!audioFile,
+      canSend: canSendMessages
+    });
+    
     if (!newMessage.trim() && !imageFile && !audioFile) return;
     if (!canSendMessages) return;
 
     try {
       let messageData: any = {
         roomId,
-        message: newMessage.trim(),
+        message: newMessage.trim() || 'Message',
         messageType: 'text'
       };
 
       // Handle audio upload
       if (audioFile) {
+        console.log('🎵 Uploading audio file...');
         const formData = new FormData();
         formData.append('audio', audioFile);
         formData.append('roomId', roomId);
 
         const uploadResponse = await api.uploadChatAudio(formData);
+        console.log('🎵 Audio upload response:', uploadResponse);
+        
         if (uploadResponse.success) {
           messageData = {
             roomId,
@@ -387,18 +431,23 @@ export default function ChatWidget({
             messageType: 'audio',
             audioUrl: uploadResponse.data?.audioUrl
           };
+          console.log('🎵 Audio message data prepared:', messageData);
         } else {
-          alert('Failed to upload audio');
+          console.error('🎵 Audio upload failed:', uploadResponse.error);
+          alert('Failed to upload audio: ' + (uploadResponse.error || 'Unknown error'));
           return;
         }
       }
       // Handle image upload
       else if (imageFile) {
+        console.log('📷 Uploading image file...');
         const formData = new FormData();
         formData.append('image', imageFile);
         formData.append('roomId', roomId);
 
         const uploadResponse = await api.uploadChatImage(formData);
+        console.log('📷 Image upload response:', uploadResponse);
+        
         if (uploadResponse.success) {
           messageData = {
             roomId,
@@ -406,13 +455,17 @@ export default function ChatWidget({
             messageType: 'image',
             imageUrl: uploadResponse.data?.imageUrl
           };
+          console.log('📷 Image message data prepared:', messageData);
         } else {
-          alert('Failed to upload image');
+          console.error('📷 Image upload failed:', uploadResponse.error);
+          alert('Failed to upload image: ' + (uploadResponse.error || 'Unknown error'));
           return;
         }
       }
 
+      console.log('📤 Sending message with data:', messageData);
       const response = await api.sendMessage(messageData);
+      console.log('📤 Send message response:', response);
       if (response.success) {
         // Optimistically add the message to UI immediately
         const responseMessage = response.message || response.data?.message;
@@ -505,7 +558,13 @@ export default function ChatWidget({
     const value = e.target.value;
     setNewMessage(value);
     
-    console.log('⌨️ ChatWidget typing event:', { value, isTyping, hasValue: !!value.trim() });
+    // Validate roomId before emitting typing events
+    if (!roomId || roomId === 'undefined') {
+      console.log('⌨️ ChatWidget - Invalid roomId, skipping typing event');
+      return;
+    }
+    
+    console.log('⌨️ ChatWidget typing event:', { value, isTyping, hasValue: !!value.trim(), roomId });
     
     // Clear existing timeout
     if (typingTimeoutRef.current) {
@@ -548,7 +607,7 @@ export default function ChatWidget({
 
   // Clear typing status when message is sent
   useEffect(() => {
-    if (isTyping) {
+    if (isTyping && roomId && roomId !== 'undefined') {
       setIsTyping(false);
       socket?.emit('user_typing', {
         roomId,
@@ -561,7 +620,7 @@ export default function ChatWidget({
   // Cleanup on component unmount
   useEffect(() => {
     return () => {
-      if (socket && connected && roomId) {
+      if (socket && connected && roomId && roomId !== 'undefined') {
         console.log('🧹 ChatWidget: Component unmounting, leaving room:', roomId);
         socketEvents.emit('leave_room', roomId);
       }
@@ -574,6 +633,39 @@ export default function ChatWidget({
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!window.confirm('Are you sure you want to delete this message? This will delete it for everyone.')) {
+      return;
+    }
+
+    try {
+      // Optimistically remove from UI
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+
+      // Delete via API
+      const response = await api.deleteRoomMessage(roomId, messageId);
+      
+      if (!response.success) {
+        // If failed, refetch messages to restore
+        fetchMessages();
+        alert('Failed to delete message');
+      }
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      fetchMessages(); // Restore messages
+      alert('Failed to delete message');
+    }
+  };
+
+  const handleMessagePrivately = (message: ChatMessage) => {
+    // Open DirectMessageWidget with the message sender
+    openChat({
+      id: message.userId,
+      username: message.username,
+      profilePicture: message.userProfilePicture
+    });
   };
 
   const isUserOnline = (userId: string) => {
@@ -603,6 +695,31 @@ export default function ChatWidget({
     if (imageIndex !== -1) {
       setCurrentImageIndex(imageIndex);
       setShowImageLightbox(true);
+    }
+  };
+
+  const handleAudioPlay = (messageId: string, audioUrl: string) => {
+    const audioElement = audioRefs.current.get(messageId);
+    
+    if (!audioElement) {
+      // Create new audio element if it doesn't exist
+      const audio = new Audio(audioUrl);
+      audioRefs.current.set(messageId, audio);
+      
+      audio.onplay = () => setPlayingAudio(messageId);
+      audio.onpause = () => setPlayingAudio(null);
+      audio.onended = () => setPlayingAudio(null);
+      
+      audio.play();
+    } else {
+      // Toggle play/pause
+      if (playingAudio === messageId) {
+        audioElement.pause();
+        setPlayingAudio(null);
+      } else {
+        audioElement.play();
+        setPlayingAudio(messageId);
+      }
     }
   };
 
@@ -694,6 +811,17 @@ export default function ChatWidget({
                 return `${onlineCount} online`;
               })()}
             </Badge>
+            {canBroadcast && (
+              <Button
+                variant={isBroadcasting ? "destructive" : "ghost"}
+                size="sm"
+                onClick={toggleBroadcast}
+                className="h-8 w-8 p-0"
+                title={isBroadcasting ? "Stop broadcasting" : "Start voice broadcast"}
+              >
+                <Radio className={`h-4 w-4 ${isBroadcasting ? 'animate-pulse' : ''}`} />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -719,13 +847,13 @@ export default function ChatWidget({
         </CardHeader>
 
         {/* Messages Area */}
-        <CardContent className="flex-1 p-0 pb-[60px] h-[calc(100%-60px)] overflow-hidden">
+        <CardContent className="flex-1 p-0 pb-[140px] h-[calc(100%-60px)] overflow-hidden">
           <ScrollArea 
             ref={scrollAreaRef} 
             className="h-full"
             onScrollCapture={handleScroll}
           >
-            <div className="p-4">
+            <div className="p-4 pb-4">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -778,8 +906,19 @@ export default function ChatWidget({
                   const isOwnMessage = message.userId === user?.id;
                   const isAudioMessage = message.messageType === 'audio';
                   
+                  // Debug audio messages
+                  if (message.messageType === 'audio') {
+                    console.log('🎵 Rendering audio message:', {
+                      id: message.id,
+                      hasAudioUrl: !!message.audioUrl,
+                      audioUrl: message.audioUrl,
+                      messageType: message.messageType,
+                      message: message.message
+                    });
+                  }
+                  
                   return (
-                    <div key={message.id} className={`flex items-start space-x-3 ${isOwnMessage ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                    <div key={message.id} className={`flex items-start space-x-3 ${isOwnMessage ? 'flex-row-reverse space-x-reverse' : ''} group`}>
                       <div className="relative">
                         <Avatar className="h-8 w-8">
                           <AvatarImage
@@ -811,11 +950,12 @@ export default function ChatWidget({
                             {formatTime(message.timestamp)}
                           </span>
                         </div>
-                        <div className={`rounded-lg p-3 ${isAudioMessage ? 'w-full' : 'max-w-xs'} ${
+                        <div className={`rounded-lg ${isAudioMessage ? 'w-full' : 'max-w-xs'} ${
                           isOwnMessage 
                             ? 'bg-primary text-primary-foreground ml-auto' 
                             : 'bg-muted'
-                        }`}>
+                        } relative flex items-start gap-2`}>
+                          <div className="flex-1 py-2 pl-2">
                           {message.messageType === 'image' && message.imageUrl ? (
                             <div>
                               <img
@@ -826,19 +966,76 @@ export default function ChatWidget({
                               />
                               <p className="text-sm">{message.message}</p>
                             </div>
-                          ) : message.messageType === 'audio' && message.audioUrl ? (
-                            <div className="w-full">
-                              <audio controls className="w-full mb-2 min-h-[40px]">
-                                <source src={message.audioUrl} type="audio/wav" />
-                                Your browser does not support the audio element.
-                              </audio>
-                              {message.message && message.message !== '🎵 Audio' && (
-                                <p className="text-sm">{message.message}</p>
-                              )}
-                            </div>
-                          ) : (
+                            ) : message.messageType === 'audio' && message.audioUrl ? (
+                              <div className="w-full">
+                                <div className={`flex items-center gap-3 rounded-lg p-3 mb-2 ${
+                                  isOwnMessage ? 'bg-primary-foreground/10' : 'bg-primary/10'
+                                }`}>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleAudioPlay(message.id, message.audioUrl!)}
+                                    className={`h-12 w-12 p-0 rounded-full ${
+                                      isOwnMessage ? 'bg-primary-foreground/30 hover:bg-primary-foreground/40' : 'bg-primary/30 hover:bg-primary/40'
+                                    }`}
+                                  >
+                                    {playingAudio === message.id ? (
+                                      <Pause className="h-6 w-6" />
+                                    ) : (
+                                      <Play className="h-6 w-6 ml-0.5" />
+                                    )}
+                                  </Button>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <Mic className="h-4 w-4 opacity-70" />
+                                      <span className="text-sm font-medium opacity-90">Audio Message</span>
+                                    </div>
+                                    <span className="text-xs opacity-60">Click to play</span>
+                                  </div>
+                                </div>
+                                {message.message && message.message !== '🎵 Audio' && (
+                                  <p className="text-sm mt-1">{message.message}</p>
+                                )}
+                              </div>
+                            ) : (
                             <p className="text-sm">{message.message}</p>
                           )}
+                          </div>
+                          
+                          {/* Three-dot dropdown menu - on the right inside message bubble */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-6 w-6 p-0 mt-2 mr-1 shrink-0 ${
+                                  isOwnMessage ? 'text-primary-foreground hover:bg-primary-foreground/20' : 'hover:bg-muted-foreground/10'
+                                }`}
+                              >
+                                <MoreVertical className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {isOwnMessage && (
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteMessage(message.id)}
+                                  className="text-red-600 hover:text-red-700 cursor-pointer"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Message
+                                </DropdownMenuItem>
+                              )}
+                              {!isOwnMessage && (
+                                <DropdownMenuItem
+                                  onClick={() => handleMessagePrivately(message)}
+                                  className="cursor-pointer"
+                                >
+                                  <MessageSquare className="h-4 w-4 mr-2" />
+                                  Message Privately
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </div>
@@ -870,7 +1067,7 @@ export default function ChatWidget({
             
             {/* Scroll to bottom button */}
             {showScrollToBottom && (
-              <div className="absolute bottom-4 right-4 z-10">
+              <div className="absolute bottom-24 right-4 z-10">
                 <Button
                   size="sm"
                   onClick={scrollToBottom}
@@ -884,22 +1081,41 @@ export default function ChatWidget({
 
         {/* Message Input */}
         {canSendMessages ? (
-            <div className="p-4 border-t absolute flex-1 h-[60px] bottom-0 left-0 right-0 z-10 bg-muted/50 rounded-b-lg">
-            {imagePreview && (
-              <div className="mb-3 relative">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-20 h-20 object-cover rounded-lg"
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={removeImage}
-                  className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
+            <div className="p-4 border-t absolute bottom-0 left-0 right-0 z-10 bg-muted/50 rounded-b-lg">
+            {(imagePreview || audioFile) && (
+              <div className="mb-2 flex gap-2">
+                {audioFile && (
+                  <div className="flex-1 p-2 bg-muted rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs">🎵 Audio ready</div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setAudioFile(null)}
+                        className="h-5 w-5 p-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {imagePreview && (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-16 h-16 object-cover rounded-lg"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={removeImage}
+                      className="absolute -top-1 -right-1 h-5 w-5 p-0 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      <X className="h-2 w-2" />
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
             <form onSubmit={handleSendMessage} className="flex space-x-2">
@@ -931,22 +1147,6 @@ export default function ChatWidget({
                   onRecordingComplete={handleAudioRecordingComplete}
                   disabled={!canSendMessages}
                 />
-                {canBroadcast && (
-                  <Button
-                    type="button"
-                    variant={isBroadcasting ? "destructive" : "ghost"}
-                    size="sm"
-                    onClick={toggleBroadcast}
-                    className="px-3"
-                    title={isBroadcasting ? "Stop broadcasting" : "Start voice broadcast"}
-                  >
-                    {isBroadcasting ? (
-                      <MicOff className="h-4 w-4" />
-                    ) : (
-                      <Mic className="h-4 w-4" />
-                    )}
-                  </Button>
-                )}
               </div>
               <Button type="submit" size="sm" disabled={!newMessage.trim() && !imageFile && !audioFile}>
                 <Send className="h-4 w-4" />

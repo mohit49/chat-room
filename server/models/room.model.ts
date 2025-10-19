@@ -33,7 +33,8 @@ export interface UpdateRoomData {
 
 export interface AddMemberData {
   roomId: string;
-  mobileNumber: string;
+  mobileNumber?: string;
+  username?: string;
   addedBy: string;
 }
 

@@ -88,6 +88,14 @@ export const getRoomById = async (req: Request, res: Response) => {
     const { id } = req.params;
     const userId = req.userId;
 
+    // Validate room ID
+    if (!id || id === 'undefined' || id === 'null' || id.length !== 24) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid room ID'
+      });
+    }
+
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -130,6 +138,15 @@ export const updateRoom = async (req: Request, res: Response) => {
     const { id } = req.params;
     console.log('=== ROOM UPDATE CONTROLLER DEBUG ===');
     console.log('Update room request - id:', id);
+    
+    // Validate room ID
+    if (!id || id === 'undefined' || id === 'null' || id.length !== 24) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid room ID'
+      });
+    }
+    
     console.log('Update room request - body:', JSON.stringify(req.body, null, 2));
     console.log('Update room request - profilePicture:', req.body.profilePicture);
     console.log('Update room request - userId:', req.userId);
@@ -199,6 +216,7 @@ export const addMember = async (req: Request, res: Response) => {
     const room = await roomService.addMember({
       roomId: id,
       username: value.username,
+      mobileNumber: value.mobileNumber,
       addedBy: userId
     });
 

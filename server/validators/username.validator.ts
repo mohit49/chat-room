@@ -16,7 +16,7 @@ export const usernameSchema = z
 
 export const updateUsernameSchema = z.object({
   body: z.object({
-    username: usernameSchema,
+    username: usernameSchema.min(1, 'Username cannot be empty'),
   }),
 });
 

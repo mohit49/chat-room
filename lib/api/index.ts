@@ -230,6 +230,14 @@ export const api = {
     return apiClient.post('/chat/send', data, token);
   },
 
+  async deleteRoomMessage(roomId: string, messageId: string): Promise<ApiResponse> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    return apiClient.delete(`/chat/rooms/${roomId}/messages/${messageId}`, token);
+  },
+
   async uploadChatImage(formData: FormData): Promise<ApiResponse> {
     const token = getAuthToken();
     if (!token) {

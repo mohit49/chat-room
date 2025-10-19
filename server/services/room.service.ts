@@ -45,15 +45,24 @@ class RoomServiceImpl implements RoomService {
       }]
     });
 
-    return await room.save();
+    const savedRoom = await room.save();
+    return savedRoom.toJSON() as IRoom;
   }
 
   async getRoomById(roomId: string): Promise<IRoom | null> {
-    return await Room.findOne({ roomId: roomId }).populate('createdBy', 'username mobileNumber');
+    const room = await Room.findOne({ roomId: roomId }).populate('createdBy', 'username mobileNumber');
+    return room ? (room.toJSON() as IRoom) : null;
   }
 
   async getRoomByMongoId(id: string): Promise<IRoom | null> {
-    return await Room.findById(id).populate('createdBy', 'username mobileNumber');
+    // Validate MongoDB ObjectId
+    if (!id || id === 'undefined' || id === 'null' || id.length !== 24) {
+      console.log(`❌ Invalid MongoDB ObjectId: ${id}`);
+      return null;
+    }
+    
+    const room = await Room.findById(id).populate('createdBy', 'username mobileNumber');
+    return room ? (room.toJSON() as IRoom) : null;
   }
 
   async getRoomsByUserId(userId: string): Promise<IRoom[]> {
@@ -65,11 +74,15 @@ class RoomServiceImpl implements RoomService {
         isActive: true
       })
       .sort({ updatedAt: -1 })
-      .maxTimeMS(15000) // Add 15 second timeout to this specific query
-      .lean(); // Use lean() for better performance
+      .maxTimeMS(15000); // Add 15 second timeout to this specific query
+      // Removed .lean() to allow toJSON transform to work
 
       console.log(`✅ Found ${rooms.length} rooms for user: ${userId}`);
-      return rooms;
+      
+      // Convert to JSON to apply transform (_id -> id)
+      const transformedRooms = rooms.map(room => room.toJSON()) as IRoom[];
+      
+      return transformedRooms;
     } catch (error: any) {
       console.error('❌ Error fetching rooms:', error);
       
@@ -104,16 +117,23 @@ class RoomServiceImpl implements RoomService {
     
     console.log('Room service - updateData:', updateData);
 
-    return await Room.findOneAndUpdate(
+    const room = await Room.findOneAndUpdate(
       { roomId: roomId },
       updateData,
       { new: true, runValidators: true }
     );
+    return room ? (room.toJSON() as IRoom) : null;
   }
 
   async updateRoomByMongoId(id: string, data: UpdateRoomData, updatedBy: string): Promise<IRoom | null> {
     console.log('Room service updateRoomByMongoId - id:', id);
     console.log('Room service updateRoomByMongoId - updatedBy:', updatedBy);
+    
+    // Validate MongoDB ObjectId
+    if (!id || id === 'undefined' || id === 'null' || id.length !== 24) {
+      console.log(`❌ Invalid MongoDB ObjectId: ${id}`);
+      throw new Error('Invalid room ID');
+    }
     
     // Check if user can edit the room
     const canEdit = await this.canUserEditRoomByMongoId(id, updatedBy);
@@ -127,11 +147,12 @@ class RoomServiceImpl implements RoomService {
     if (data.description !== undefined) updateData.description = data.description;
     if (data.profilePicture !== undefined) updateData.profilePicture = data.profilePicture;
 
-    return await Room.findByIdAndUpdate(
+    const room = await Room.findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
     );
+    return room ? (room.toJSON() as IRoom) : null;
   }
 
   async addMember(data: AddMemberData): Promise<IRoom | null> {
@@ -141,12 +162,24 @@ class RoomServiceImpl implements RoomService {
       throw new Error('You do not have permission to add members to this room');
     }
 
-    // Find user by username
-    const username = data.username.trim().replace('@', ''); // Remove @ if present
-    const user = await User.findOne({ "username": username });
+    // Find user by username or mobile number
+    let user;
     
-    if (!user) {
-      throw new Error('User not found with this username');
+    if (data.mobileNumber) {
+      // Search by mobile number
+      user = await User.findOne({ mobileNumber: data.mobileNumber });
+      if (!user) {
+        throw new Error('User not found with this mobile number');
+      }
+    } else if (data.username) {
+      // Search by username
+      const username = data.username.trim().replace('@', ''); // Remove @ if present
+      user = await User.findOne({ username: username });
+      if (!user) {
+        throw new Error('User not found with this username');
+      }
+    } else {
+      throw new Error('Either username or mobile number is required');
     }
 
     // Check if user is already in the room
@@ -225,7 +258,8 @@ class RoomServiceImpl implements RoomService {
     }
 
     member.role = data.newRole;
-    return await room.save();
+    const savedRoom = await room.save();
+    return savedRoom.toJSON() as IRoom;
   }
 
   async removeMember(data: RemoveMemberData): Promise<IRoom | null> {
@@ -254,7 +288,8 @@ class RoomServiceImpl implements RoomService {
     }
 
     room.members = room.members.filter(m => m.userId !== data.memberId);
-    return await room.save();
+    const savedRoom = await room.save();
+    return savedRoom.toJSON() as IRoom;
   }
 
   async deleteRoom(roomId: string, deletedBy: string): Promise<boolean> {
@@ -274,6 +309,12 @@ class RoomServiceImpl implements RoomService {
   }
 
   async deleteRoomByMongoId(id: string, deletedBy: string): Promise<boolean> {
+    // Validate MongoDB ObjectId
+    if (!id || id === 'undefined' || id === 'null' || id.length !== 24) {
+      console.log(`❌ Invalid MongoDB ObjectId: ${id}`);
+      return false;
+    }
+    
     // Check if user can manage the room (only admins can delete)
     const canManage = await this.canUserManageRoomByMongoId(id, deletedBy);
     if (!canManage) {
@@ -295,6 +336,12 @@ class RoomServiceImpl implements RoomService {
   }
 
   async getRoomMembersByMongoId(id: string): Promise<IRoomMember[]> {
+    // Validate MongoDB ObjectId
+    if (!id || id === 'undefined' || id === 'null' || id.length !== 24) {
+      console.log(`❌ Invalid MongoDB ObjectId: ${id}`);
+      return [];
+    }
+    
     const room = await Room.findById(id);
     return room ? room.members : [];
   }
@@ -332,6 +379,13 @@ class RoomServiceImpl implements RoomService {
 
   async getUserRoleInRoomByMongoId(id: string, userId: string): Promise<'admin' | 'editor' | 'viewer' | null> {
     console.log('getUserRoleInRoomByMongoId - id:', id, 'userId:', userId);
+    
+    // Validate MongoDB ObjectId
+    if (!id || id === 'undefined' || id === 'null' || id.length !== 24) {
+      console.log(`❌ Invalid MongoDB ObjectId: ${id}`);
+      return null;
+    }
+    
     const room = await Room.findById(id);
     console.log('Found room:', room ? 'yes' : 'no');
     if (!room) return null;

@@ -110,7 +110,10 @@ export class ApiClient {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: JSON.stringify(data),
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json',
+      },
     });
   }
 

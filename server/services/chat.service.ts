@@ -84,6 +84,7 @@ export const chatService = {
             message: msg.message,
             messageType: msg.messageType,
             imageUrl: msg.imageUrl,
+            audioUrl: msg.audioUrl,
             timestamp: msg.timestamp,
             userProfilePicture: msg.userProfilePicture
           })),
@@ -109,8 +110,10 @@ export const chatService = {
       console.log('🔍 sendMessage called with:', {
         roomId,
         userId,
-        message: message.substring(0, 50) + '...',
-        messageType
+        message: message,
+        messageType,
+        imageUrl,
+        audioUrl
       });
 
       // Check if user is a member of the room
@@ -270,6 +273,46 @@ export const chatService = {
     } catch (error) {
       console.error('Error uploading audio:', error);
       return { success: false, error: 'Failed to upload audio' };
+    }
+  },
+
+  async deleteMessage(roomId: string, messageId: string, userId: string): Promise<ApiResponse> {
+    try {
+      // Validate MongoDB ObjectId
+      if (!messageId || messageId === 'undefined' || messageId.length !== 24) {
+        return { success: false, error: 'Invalid message ID' };
+      }
+
+      // Find the message
+      const message = await ChatMessageModel.findById(messageId);
+      if (!message) {
+        return { success: false, error: 'Message not found' };
+      }
+
+      // Check if user is the owner of the message
+      if (message.userId !== userId) {
+        return { success: false, error: 'You can only delete your own messages' };
+      }
+
+      // Check if message belongs to the room
+      if (message.roomId !== roomId) {
+        return { success: false, error: 'Message does not belong to this room' };
+      }
+
+      // Delete the message
+      await ChatMessageModel.findByIdAndDelete(messageId);
+
+      // Delete associated files if they exist
+      if (message.imageUrl || message.audioUrl) {
+        const { deleteFile } = await import('../utils/fileDelete');
+        if (message.imageUrl) await deleteFile(message.imageUrl);
+        if (message.audioUrl) await deleteFile(message.audioUrl);
+      }
+
+      return { success: true, message: 'Message deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      return { success: false, error: 'Failed to delete message' };
     }
   }
 };
