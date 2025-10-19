@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MapPin, Calendar, User, Users, Settings, Edit3, Bell, MessageCircle } from 'lucide-react';
+import { MapPin, Calendar, User, Users, Settings, Edit3, Bell, MessageCircle, Radio, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { APP_HEADER_CONFIGS } from '@/lib/config/app-header';
@@ -16,6 +16,7 @@ import CreateRoomModal from '@/components/room/CreateRoomModal';
 import EditRoomModal from '@/components/room/EditRoomModal';
 import ChatWidget from '@/components/chat/ChatWidget';
 import { VoiceBroadcastProvider } from '@/lib/contexts/VoiceBroadcastContext';
+import { useSocket } from '@/lib/contexts/SocketContext';
 import { api } from '@/lib/api';
 
 interface Room {
@@ -38,8 +39,17 @@ interface Room {
   isActive: boolean;
 }
 
+interface BroadcastState {
+  roomId: string;
+  broadcasterName: string;
+  broadcasterId: string;
+  isListening: boolean;
+  isMuted: boolean;
+}
+
 export default function HomePage() {
   const { user, logout } = useAuth();
+  const { socket } = useSocket();
   const router = useRouter();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,12 +58,47 @@ export default function HomePage() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatRoom, setChatRoom] = useState<Room | null>(null);
+  const [activeBroadcasts, setActiveBroadcasts] = useState<Map<string, BroadcastState>>(new Map());
 
   useEffect(() => {
     if (user) {
       fetchRooms();
     }
   }, [user]);
+
+  // Listen for broadcast events
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('voice_broadcast_started', (data: { userId: string; username: string; roomId: string }) => {
+      console.log('📻 Broadcast started in room:', data);
+      setActiveBroadcasts(prev => {
+        const newMap = new Map(prev);
+        newMap.set(data.roomId, {
+          roomId: data.roomId,
+          broadcasterName: data.username,
+          broadcasterId: data.userId,
+          isListening: true,
+          isMuted: false
+        });
+        return newMap;
+      });
+    });
+
+    socket.on('voice_broadcast_stopped', (data: { userId: string; roomId: string }) => {
+      console.log('📻 Broadcast stopped in room:', data.roomId);
+      setActiveBroadcasts(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(data.roomId);
+        return newMap;
+      });
+    });
+
+    return () => {
+      socket.off('voice_broadcast_started');
+      socket.off('voice_broadcast_stopped');
+    };
+  }, [socket]);
 
   const fetchRooms = async () => {
     try {
@@ -111,6 +156,28 @@ export default function HomePage() {
   const handleChatNow = (room: Room) => {
     setChatRoom(room);
     setIsChatOpen(true);
+  };
+
+  const toggleBroadcastListen = (roomId: string) => {
+    setActiveBroadcasts(prev => {
+      const newMap = new Map(prev);
+      const current = newMap.get(roomId);
+      if (current) {
+        newMap.set(roomId, { ...current, isListening: !current.isListening });
+      }
+      return newMap;
+    });
+  };
+
+  const toggleBroadcastMute = (roomId: string) => {
+    setActiveBroadcasts(prev => {
+      const newMap = new Map(prev);
+      const current = newMap.get(roomId);
+      if (current) {
+        newMap.set(roomId, { ...current, isMuted: !current.isMuted });
+      }
+      return newMap;
+    });
   };
 
   const getCurrentUserRole = (room: Room): 'admin' | 'editor' | 'viewer' | null => {
@@ -223,8 +290,22 @@ export default function HomePage() {
               </div>
             ) : (
               <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-thin">
-                {rooms.map(room => (
-                  <Card key={room.id} className="hover:shadow-md transition-shadow relative flex-shrink-0 w-[300px] snap-start">
+                {rooms.map(room => {
+                  const broadcastState = activeBroadcasts.get(room.id);
+                  const isBroadcasting = !!broadcastState;
+
+                  return (
+                  <Card key={room.id} className={`hover:shadow-md transition-shadow relative flex-shrink-0 w-[300px] snap-start ${isBroadcasting ? 'ring-2 ring-green-500' : ''}`}>
+                    {/* Broadcasting Badge - Top left */}
+                    {isBroadcasting && (
+                      <div className="absolute top-2 left-2 z-10">
+                        <Badge className="bg-green-500 hover:bg-green-600 animate-pulse">
+                          <Radio className="h-3 w-3 mr-1" />
+                          Live
+                        </Badge>
+                      </div>
+                    )}
+
                     {/* Settings Icon - Positioned at top-right corner */}
                     <div className="absolute top-2 right-2 z-10">
                       <DropdownMenu>
@@ -283,6 +364,56 @@ export default function HomePage() {
                           {getCurrentUserRole(room)}
                         </Badge>
                       </div>
+
+                      {/* Broadcasting Controls */}
+                      {isBroadcasting && broadcastState && (
+                        <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-green-800 truncate">
+                                🎙️ {broadcastState.broadcasterId === user?.id ? 'You are' : broadcastState.broadcasterName + ' is'} broadcasting
+                              </p>
+                            </div>
+                            {broadcastState.broadcasterId !== user?.id && (
+                              <div className="flex items-center gap-1 ml-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleBroadcastListen(room.id);
+                                  }}
+                                  className="h-7 w-7 p-0 text-green-700 hover:bg-green-100"
+                                  title={broadcastState.isListening ? "Pause" : "Play"}
+                                >
+                                  {broadcastState.isListening ? (
+                                    <Pause className="h-3 w-3" />
+                                  ) : (
+                                    <Play className="h-3 w-3 ml-0.5" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleBroadcastMute(room.id);
+                                  }}
+                                  className="h-7 w-7 p-0 text-green-700 hover:bg-green-100"
+                                  title={broadcastState.isMuted ? "Unmute" : "Mute"}
+                                >
+                                  {broadcastState.isMuted ? (
+                                    <VolumeX className="h-3 w-3" />
+                                  ) : (
+                                    <Volume2 className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <Button 
                         onClick={() => handleChatNow(room)}
                         className="w-full"
@@ -293,7 +424,8 @@ export default function HomePage() {
                       </Button>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

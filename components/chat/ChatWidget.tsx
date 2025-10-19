@@ -87,7 +87,7 @@ export default function ChatWidget({
   const { socket, connected } = useSocket();
   const { user } = useAuth();
   const { soundEnabled, toggleSound, playMessageSound } = useSound();
-  const { isBroadcasting, canBroadcast, toggleBroadcast } = useVoiceBroadcast();
+  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute } = useVoiceBroadcast();
   
   // Socket events
   const socketEvents = useSocketEvents({
@@ -160,6 +160,20 @@ export default function ChatWidget({
     onMessageDeleted: (data: { messageId: string; deletedBy?: string }) => {
       console.log('🗑️ ChatWidget - Message deleted:', data);
       setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
+    },
+    onVoiceBroadcastStarted: (data: { userId: string; username: string; roomId: string }) => {
+      if (data.roomId === roomId) {
+        console.log('📻 ChatWidget - Broadcast started:', data);
+        setBroadcastInfo({ userId: data.userId, username: data.username });
+        setBroadcastListening(true);
+      }
+    },
+    onVoiceBroadcastStopped: (data: { userId: string; roomId: string }) => {
+      if (data.roomId === roomId) {
+        console.log('📻 ChatWidget - Broadcast stopped');
+        setBroadcastInfo(null);
+        setBroadcastListening(false);
+      }
     }
   }, `ChatWidget-${roomId}`);
   
@@ -179,6 +193,9 @@ export default function ChatWidget({
   const [isTyping, setIsTyping] = useState(false);
   const [displayRoomId, setDisplayRoomId] = useState<string>(roomId);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [broadcastInfo, setBroadcastInfo] = useState<{ userId: string; username: string } | null>(null);
+  const [broadcastListening, setBroadcastListening] = useState(true);
+  const [broadcastMuted, setBroadcastMuted] = useState(false);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesStartRef = useRef<HTMLDivElement>(null);
@@ -769,8 +786,8 @@ export default function ChatWidget({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 w-[500px] h-[700px] z-50 flex flex-col overflow-hidden">
-      <Card className="h-full flex flex-col shadow-2xl border-2 p-0">
+    <div className="fixed bottom-0 right-0 w-full h-full sm:bottom-4 sm:right-4 sm:w-[500px] sm:h-[700px] z-50 flex flex-col overflow-hidden">
+      <Card className="w-full h-full flex flex-col shadow-2xl sm:border-2 border-0 p-0 sm:rounded-lg rounded-none">
         {/* Chat Header */}
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 border-b">
           <div className="flex items-center space-x-3">
@@ -845,6 +862,57 @@ export default function ChatWidget({
             </Button>
           </div>
         </CardHeader>
+
+        {/* Broadcasting Notification Strip */}
+        {(currentBroadcaster || broadcastInfo) && (
+          <div className="bg-green-500 text-white px-4 py-2 flex items-center justify-between border-b">
+            <div className="flex items-center gap-3 flex-1">
+              <Radio className="h-4 w-4 animate-pulse" />
+              <span className="text-sm font-medium">
+                {(currentBroadcaster?.userId === user?.id || broadcastInfo?.userId === user?.id)
+                  ? 'You are broadcasting now' 
+                  : `${currentBroadcaster?.username || broadcastInfo?.username} is broadcasting now`
+                }
+              </span>
+            </div>
+            {(currentBroadcaster?.userId !== user?.id && broadcastInfo?.userId !== user?.id) && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (currentBroadcaster) toggleListen();
+                    else setBroadcastListening(!broadcastListening);
+                  }}
+                  className="h-8 w-8 p-0 text-white hover:bg-white/20"
+                  title={(isListening || broadcastListening) ? "Pause" : "Play"}
+                >
+                  {(isListening || broadcastListening) ? (
+                    <Pause className="h-4 w-4" />
+                  ) : (
+                    <Play className="h-4 w-4 ml-0.5" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (currentBroadcaster) toggleMute();
+                    else setBroadcastMuted(!broadcastMuted);
+                  }}
+                  className="h-8 w-8 p-0 text-white hover:bg-white/20"
+                  title={(isMuted || broadcastMuted) ? "Unmute" : "Mute"}
+                >
+                  {(isMuted || broadcastMuted) ? (
+                    <VolumeX className="h-4 w-4" />
+                  ) : (
+                    <Volume2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Messages Area */}
         <CardContent className="flex-1 p-0 pb-[140px] h-[calc(100%-60px)] overflow-hidden">

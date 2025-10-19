@@ -2,14 +2,23 @@
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { useSocket } from './SocketContext';
+
+interface BroadcasterInfo {
+  userId: string;
+  username: string;
+}
 
 interface VoiceBroadcastContextType {
   isBroadcasting: boolean;
   isListening: boolean;
-  broadcasters: string[];
+  currentBroadcaster: BroadcasterInfo | null;
+  isMuted: boolean;
   startBroadcast: () => Promise<void>;
   stopBroadcast: () => void;
   toggleBroadcast: () => Promise<void>;
+  toggleMute: () => void;
+  toggleListen: () => void;
   canBroadcast: boolean;
 }
 
@@ -31,70 +40,61 @@ interface VoiceBroadcastProviderProps {
 
 export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroadcastProviderProps) => {
   const { user } = useAuth();
+  const { socket } = useSocket();
   const [isBroadcasting, setIsBroadcasting] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [broadcasters, setBroadcasters] = useState<string[]>([]);
+  const [isListening, setIsListening] = useState(true); // Auto-listen when broadcast starts
+  const [currentBroadcaster, setCurrentBroadcaster] = useState<BroadcasterInfo | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
   
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
 
   const canBroadcast = userRole === 'admin';
 
   const startBroadcast = async () => {
-    if (!canBroadcast || isBroadcasting) return;
+    if (!canBroadcast || isBroadcasting || !socket) return;
 
     try {
+      console.log('🎤 Starting broadcast...');
+      
       // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 48000
         } 
       });
 
       mediaStreamRef.current = stream;
-
-      // Set up audio context for processing
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      audioContextRef.current = audioContext;
-
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      analyserRef.current = analyser;
-
-      const microphone = audioContext.createMediaStreamSource(stream);
-      microphoneRef.current = microphone;
-      microphone.connect(analyser);
-
-      // Create audio element for playback
-      const audioElement = new Audio();
-      audioElement.srcObject = stream;
-      audioElement.autoplay = true;
-      audioElement.volume = 0.8;
-
-      // Store audio element
-      if (user?.id) {
-        audioElementsRef.current.set(user.id, audioElement);
-      }
-
       setIsBroadcasting(true);
-      console.log('🎤 Started voice broadcast');
       
-      // For now, just show a notification that broadcast started
-      // In a full implementation, this would connect to WebRTC peers
-      alert('Voice broadcast started! (Note: This is a demo implementation)');
+      // Set current broadcaster info
+      setCurrentBroadcaster({
+        userId: user?.id || '',
+        username: user?.username || user?.mobileNumber || 'Unknown'
+      });
+
+      // Emit broadcast start event via socket
+      socket.emit('voice_broadcast_start', {
+        roomId,
+        userId: user?.id,
+        username: user?.username || user?.mobileNumber
+      });
+
+      console.log('✅ Voice broadcast started');
     } catch (error) {
-      console.error('Error starting broadcast:', error);
+      console.error('❌ Error starting broadcast:', error);
       alert('Failed to start voice broadcast. Please check microphone permissions.');
+      setIsBroadcasting(false);
     }
   };
 
   const stopBroadcast = () => {
-    if (!isBroadcasting) return;
+    if (!isBroadcasting || !socket) return;
 
     // Stop media stream
     if (mediaStreamRef.current) {
@@ -102,27 +102,22 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
       mediaStreamRef.current = null;
     }
 
-    // Close audio context
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-
-    // Clean up audio elements
-    if (user?.id) {
-      const audioElement = audioElementsRef.current.get(user.id);
-      if (audioElement) {
-        audioElement.pause();
-        audioElement.srcObject = null;
-        audioElementsRef.current.delete(user.id);
-      }
+    // Close peer connection
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
     }
 
     setIsBroadcasting(false);
+    setCurrentBroadcaster(null);
+
+    // Emit broadcast stop event via socket
+    socket.emit('voice_broadcast_stop', {
+      roomId,
+      userId: user?.id
+    });
+
     console.log('🎤 Stopped voice broadcast');
-    
-    // Show notification that broadcast stopped
-    alert('Voice broadcast stopped!');
   };
 
   const toggleBroadcast = async () => {
@@ -133,10 +128,67 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
     }
   };
 
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    if (audioElementRef.current) {
+      audioElementRef.current.muted = !isMuted;
+    }
+    console.log('🔇 Audio muted:', !isMuted);
+  };
+
+  const toggleListen = () => {
+    setIsListening(!isListening);
+    if (audioElementRef.current) {
+      if (isListening) {
+        audioElementRef.current.pause();
+      } else {
+        audioElementRef.current.play();
+      }
+    }
+    console.log('🎧 Listening:', !isListening);
+  };
+
+  // Listen for broadcast events from socket
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('voice_broadcast_started', (data: { userId: string; username: string; roomId: string }) => {
+      if (data.roomId === roomId && data.userId !== user?.id) {
+        console.log('📻 Broadcast started by:', data.username);
+        setCurrentBroadcaster({
+          userId: data.userId,
+          username: data.username
+        });
+        setIsListening(true);
+      }
+    });
+
+    socket.on('voice_broadcast_stopped', (data: { userId: string; roomId: string }) => {
+      if (data.roomId === roomId) {
+        console.log('📻 Broadcast stopped');
+        setCurrentBroadcaster(null);
+        setIsListening(false);
+        
+        // Stop any playing audio
+        if (audioElementRef.current) {
+          audioElementRef.current.pause();
+          audioElementRef.current.srcObject = null;
+        }
+      }
+    });
+
+    return () => {
+      socket.off('voice_broadcast_started');
+      socket.off('voice_broadcast_stopped');
+    };
+  }, [socket, roomId, user?.id]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopBroadcast();
+      if (isBroadcasting) {
+        stopBroadcast();
+      }
     };
   }, []);
 
@@ -144,10 +196,13 @@ export const VoiceBroadcastProvider = ({ children, roomId, userRole }: VoiceBroa
     <VoiceBroadcastContext.Provider value={{
       isBroadcasting,
       isListening,
-      broadcasters,
+      currentBroadcaster,
+      isMuted,
       startBroadcast,
       stopBroadcast,
       toggleBroadcast,
+      toggleMute,
+      toggleListen,
       canBroadcast
     }}>
       {children}

@@ -72,7 +72,7 @@ function ChatPageContent() {
   const { socket, connected } = useSocket();
   const { user } = useAuth();
   const { soundEnabled, toggleSound, playMessageSound } = useSound();
-  const { isBroadcasting, canBroadcast, toggleBroadcast } = useVoiceBroadcast();
+  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute } = useVoiceBroadcast();
   
   // Socket events
   const socketEvents = useSocketEvents({
@@ -134,6 +134,20 @@ function ChatPageContent() {
     onMessageDeleted: (data: { messageId: string; deletedBy?: string }) => {
       console.log('🗑️ Chat Page - Message deleted:', data);
       setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
+    },
+    onVoiceBroadcastStarted: (data: { userId: string; username: string; roomId: string }) => {
+      if (data.roomId === roomId) {
+        console.log('📻 Chat Page - Broadcast started:', data);
+        setBroadcastInfo({ userId: data.userId, username: data.username });
+        setBroadcastListening(true);
+      }
+    },
+    onVoiceBroadcastStopped: (data: { userId: string; roomId: string }) => {
+      if (data.roomId === roomId) {
+        console.log('📻 Chat Page - Broadcast stopped');
+        setBroadcastInfo(null);
+        setBroadcastListening(false);
+      }
     }
   }, `ChatPage-${roomId}`);
   
@@ -152,6 +166,9 @@ function ChatPageContent() {
   const [showImageLightbox, setShowImageLightbox] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [broadcastInfo, setBroadcastInfo] = useState<{ userId: string; username: string } | null>(null);
+  const [broadcastListening, setBroadcastListening] = useState(true);
+  const [broadcastMuted, setBroadcastMuted] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map()); // userId -> username
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -801,8 +818,59 @@ function ChatPageContent() {
         </div>
       </div>
 
+      {/* Broadcasting Notification Strip */}
+      {(currentBroadcaster || broadcastInfo) && (
+        <div className="fixed top-16 sm:top-20 left-0 right-0 z-40 bg-green-500 text-white px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between border-b shadow-lg">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1">
+            <Radio className="h-4 w-4 sm:h-5 sm:w-5 animate-pulse" />
+            <span className="text-xs sm:text-sm font-medium">
+              {(currentBroadcaster?.userId === user?.id || broadcastInfo?.userId === user?.id)
+                ? 'You are broadcasting now' 
+                : `${currentBroadcaster?.username || broadcastInfo?.username} is broadcasting now`
+              }
+            </span>
+          </div>
+          {(currentBroadcaster?.userId !== user?.id && broadcastInfo?.userId !== user?.id) && (
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (currentBroadcaster) toggleListen();
+                  else setBroadcastListening(!broadcastListening);
+                }}
+                className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-white hover:bg-white/20"
+                title={(isListening || broadcastListening) ? "Pause" : "Play"}
+              >
+                {(isListening || broadcastListening) ? (
+                  <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
+                ) : (
+                  <Play className="h-3 w-3 sm:h-4 sm:w-4 ml-0.5" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (currentBroadcaster) toggleMute();
+                  else setBroadcastMuted(!broadcastMuted);
+                }}
+                className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-white hover:bg-white/20"
+                title={(isMuted || broadcastMuted) ? "Unmute" : "Mute"}
+              >
+                {(isMuted || broadcastMuted) ? (
+                  <VolumeX className="h-3 w-3 sm:h-4 sm:w-4" />
+                ) : (
+                  <Volume2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Chat Area - Scrollable */}
-      <div className="flex-1 pt-16 sm:pt-20 pb-20 sm:pb-20 overflow-hidden">
+      <div className={`flex-1 ${(currentBroadcaster || broadcastInfo) ? 'pt-28 sm:pt-32' : 'pt-16 sm:pt-20'} pb-20 sm:pb-20 overflow-hidden`}>
         <Card className="h-full border-0 rounded-none">
           <CardContent className="flex-1 p-0 h-full">
             <ScrollArea 

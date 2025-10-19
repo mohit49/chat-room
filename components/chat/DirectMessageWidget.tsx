@@ -559,8 +559,8 @@ export default function DirectMessageWidget({
 
   console.log('🔔 DirectMessageWidget is open, rendering chat widget');
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-h-[700px] sm:w-[450px] sm:h-[700px] animate-in slide-in-from-bottom-2 duration-300">
-      <Card className="w-full h-full flex flex-col shadow-2xl border-2">
+    <div className="fixed bottom-0 right-0 w-full h-full sm:bottom-4 sm:right-4 sm:w-[450px] sm:h-[700px] z-50 animate-in slide-in-from-bottom-2 duration-300">
+      <Card className="w-full h-full flex flex-col shadow-2xl sm:border-2 border-0 sm:rounded-lg rounded-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <div className="flex items-center space-x-3">
             <Avatar className="h-8 w-8">

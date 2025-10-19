@@ -19,6 +19,14 @@ export const userSessions = new Map<string, {
   connectedAt: Date;
 }>(); // sessionId -> user info
 
+// Store active broadcasts
+export const activeBroadcasts = new Map<string, {
+  roomId: string;
+  userId: string;
+  username: string;
+  startedAt: Date;
+}>(); // roomId -> broadcast info
+
 export const setupSocketHandlers = (io: SocketIOServer) => {
   console.log('🔌 Setting up Socket.IO handlers');
   
@@ -94,6 +102,35 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
           message: 'Successfully connected to notification service'
         });
 
+        // Send active broadcasts for all rooms this user is a member of
+        if (activeBroadcasts.size > 0) {
+          try {
+            const roomSchema = await import('../database/schemas/room.schema');
+            const RoomModel = roomSchema.default;
+            
+            // Find all rooms where this user is a member
+            const userRooms = await RoomModel.find({
+              'members.userId': socket.userId,
+              isActive: true
+            });
+            
+            // Send broadcast status for each room
+            userRooms.forEach(room => {
+              const roomBroadcast = activeBroadcasts.get(room._id.toString());
+              if (roomBroadcast) {
+                console.log(`📻 Sending active broadcast status for room ${room._id} to user ${socket.userId}`);
+                socket.emit('voice_broadcast_started', {
+                  userId: roomBroadcast.userId,
+                  username: roomBroadcast.username,
+                  roomId: roomBroadcast.roomId
+                });
+              }
+            });
+          } catch (error) {
+            console.error('❌ Error sending active broadcast status:', error);
+          }
+        }
+
         // Broadcast online status to all users with updated socket mapping
         io.emit('user_online_status', {
           userId: socket.userId,
@@ -138,6 +175,17 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
 
       // Send current online members to the user who joined
       await sendRoomMembersStatus(io, roomId);
+      
+      // Send current broadcast status if there's an active broadcast
+      const activeBroadcast = activeBroadcasts.get(roomId);
+      if (activeBroadcast) {
+        console.log(`📻 Sending active broadcast status to user joining room ${roomId}:`, activeBroadcast);
+        socket.emit('voice_broadcast_started', {
+          userId: activeBroadcast.userId,
+          username: activeBroadcast.username,
+          roomId: activeBroadcast.roomId
+        });
+      }
     });
 
     // Handle leaving room channels
@@ -303,21 +351,90 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
     });
 
     // Voice broadcasting events
-    socket.on('voice_broadcast_start', (data) => {
+    socket.on('voice_broadcast_start', async (data) => {
       console.log('🎤 Voice broadcast started:', data);
-      socket.to(`room_${data.roomId}`).emit('voice_broadcast_started', {
+      const broadcastData = {
         userId: socket.userId,
         username: socket.user?.username || socket.user?.mobileNumber,
         roomId: data.roomId
+      };
+      
+      // Store active broadcast
+      activeBroadcasts.set(data.roomId, {
+        roomId: data.roomId,
+        userId: socket.userId!,
+        username: socket.user?.username || socket.user?.mobileNumber || 'Unknown',
+        startedAt: new Date()
       });
+      console.log('📻 Active broadcast stored for room:', data.roomId);
+      
+      // Send to all room members in room channel
+      io.to(`room_${data.roomId}`).emit('voice_broadcast_started', broadcastData);
+      
+      // Also send to broadcaster
+      socket.emit('voice_broadcast_started', broadcastData);
+      
+      // Get all room members and send to each individually (for home/rooms page)
+      try {
+        const roomSchema = await import('../database/schemas/room.schema');
+        const RoomModel = roomSchema.default;
+        const room = await RoomModel.findById(data.roomId);
+        
+        if (room) {
+          // Send to each room member individually
+          room.members.forEach(member => {
+            const memberSocketId = connectedUsers.get(member.userId);
+            if (memberSocketId) {
+              io.to(memberSocketId).emit('voice_broadcast_started', broadcastData);
+            }
+          });
+          console.log('✅ Broadcast notification sent to all room members');
+        }
+      } catch (error) {
+        console.error('❌ Error notifying room members:', error);
+      }
+      
+      console.log('✅ Broadcast started notification sent to room:', data.roomId);
     });
 
-    socket.on('voice_broadcast_stop', (data) => {
+    socket.on('voice_broadcast_stop', async (data) => {
       console.log('🎤 Voice broadcast stopped:', data);
-      socket.to(`room_${data.roomId}`).emit('voice_broadcast_stopped', {
+      const stopData = {
         userId: socket.userId,
         roomId: data.roomId
-      });
+      };
+      
+      // Remove from active broadcasts
+      activeBroadcasts.delete(data.roomId);
+      console.log('📻 Active broadcast removed for room:', data.roomId);
+      
+      // Send to all room members in room channel
+      io.to(`room_${data.roomId}`).emit('voice_broadcast_stopped', stopData);
+      
+      // Also send to broadcaster
+      socket.emit('voice_broadcast_stopped', stopData);
+      
+      // Get all room members and send to each individually (for home/rooms page)
+      try {
+        const roomSchema = await import('../database/schemas/room.schema');
+        const RoomModel = roomSchema.default;
+        const room = await RoomModel.findById(data.roomId);
+        
+        if (room) {
+          // Send to each room member individually
+          room.members.forEach(member => {
+            const memberSocketId = connectedUsers.get(member.userId);
+            if (memberSocketId) {
+              io.to(memberSocketId).emit('voice_broadcast_stopped', stopData);
+            }
+          });
+          console.log('✅ Broadcast stop notification sent to all room members');
+        }
+      } catch (error) {
+        console.error('❌ Error notifying room members:', error);
+      }
+      
+      console.log('✅ Broadcast stopped notification sent to room:', data.roomId);
     });
 
     socket.on('voice_join_request', (data) => {
