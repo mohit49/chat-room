@@ -57,18 +57,30 @@ class RoomServiceImpl implements RoomService {
   }
 
   async getRoomsByUserId(userId: string): Promise<IRoom[]> {
-    const rooms = await Room.find({
-      'members.userId': userId,
-      isActive: true
-    }).sort({ updatedAt: -1 });
-    
-    console.log('getRoomsByUserId - found rooms:', rooms.map(r => ({ 
-      _id: r._id, 
-      roomId: r.roomId, 
-      name: r.name 
-    })));
-    
-    return rooms;
+    try {
+      console.log(`🔍 Fetching rooms for user: ${userId}`);
+      
+      const rooms = await Room.find({
+        'members.userId': userId,
+        isActive: true
+      })
+      .sort({ updatedAt: -1 })
+      .maxTimeMS(15000) // Add 15 second timeout to this specific query
+      .lean(); // Use lean() for better performance
+
+      console.log(`✅ Found ${rooms.length} rooms for user: ${userId}`);
+      return rooms;
+    } catch (error: any) {
+      console.error('❌ Error fetching rooms:', error);
+      
+      // If it's a timeout error, return empty array instead of crashing
+      if (error.message?.includes('timed out') || error.message?.includes('buffering timed out')) {
+        console.log('⚠️ Database timeout, returning empty rooms array');
+        return [];
+      }
+      
+      throw error; // Re-throw other errors
+    }
   }
 
   async updateRoom(roomId: string, data: UpdateRoomData, updatedBy: string): Promise<IRoom | null> {

@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { X, Send, Loader2, MessageCircle, Image as ImageIcon, Volume2, VolumeX, Trash2, MoreVertical } from 'lucide-react';
 import AudioRecorder from './AudioRecorder';
+import ImageLightbox from './ImageLightbox';
 import { ImageCompressor } from '@/lib/utils/imageCompression';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useSocket } from '@/lib/contexts/SocketContext';
@@ -141,6 +142,8 @@ export default function DirectMessageWidget({
   const [isTargetUserTyping, setIsTargetUserTyping] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showImageLightbox, setShowImageLightbox] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -258,8 +261,32 @@ export default function DirectMessageWidget({
       const response = await api.sendDirectMessage(targetUser.id, messageData.message, messageData.messageType, messageData.imageUrl, messageData.audioUrl);
 
       if (response.success) {
-        // Don't add message locally - it will come via socket for real-time updates
-        // Just clear the form
+        // Optimistically add the message to UI immediately
+        const responseData = response as any; // Server returns messageId at top level
+        const newMessageData: DirectMessage = {
+          id: responseData.messageId || response.data?.id || `temp-${Date.now()}`,
+          senderId: user.id,
+          receiverId: targetUser.id,
+          message: messageData.message,
+          messageType: messageData.messageType,
+          imageUrl: messageData.imageUrl,
+          audioUrl: messageData.audioUrl,
+          timestamp: new Date().toISOString(),
+          senderUsername: user.username || user.mobileNumber,
+          senderProfilePicture: user.profile?.profilePicture
+        };
+
+        // Add message to local state immediately for instant feedback
+        setMessages(prev => {
+          // Check if it already exists (in case socket event arrived first)
+          const exists = prev.some(msg => msg.id === newMessageData.id);
+          if (exists) return prev;
+          return [...prev, newMessageData];
+        });
+        
+        scrollToBottom();
+        
+        // Clear the form
         setNewMessage('');
         setAudioFile(null);
         setImageFile(null);
@@ -391,6 +418,29 @@ export default function DirectMessageWidget({
     onClose();
   };
 
+  // Get all image messages for lightbox
+  const getImageMessages = () => {
+    return messages
+      .filter(msg => msg.messageType === 'image' && msg.imageUrl)
+      .map(msg => ({
+        id: msg.id,
+        imageUrl: msg.imageUrl!,
+        message: msg.message,
+        timestamp: msg.timestamp,
+        senderUsername: msg.senderUsername
+      }));
+  };
+
+  const handleImageClick = (imageUrl: string) => {
+    const imageMessages = getImageMessages();
+    const imageIndex = imageMessages.findIndex(img => img.imageUrl === imageUrl);
+    
+    if (imageIndex !== -1) {
+      setCurrentImageIndex(imageIndex);
+      setShowImageLightbox(true);
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setNewMessage(value);
@@ -482,7 +532,7 @@ export default function DirectMessageWidget({
 
   console.log('🔔 DirectMessageWidget is open, rendering chat widget');
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-h-[600px] sm:w-80 sm:h-[600px] animate-in slide-in-from-bottom-2 duration-300">
+    <div className="fixed bottom-4 right-4 z-50 w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-h-[700px] sm:w-[450px] sm:h-[700px] animate-in slide-in-from-bottom-2 duration-300">
       <Card className="w-full h-full flex flex-col shadow-2xl border-2">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <div className="flex items-center space-x-3">
@@ -574,7 +624,7 @@ export default function DirectMessageWidget({
                       } group`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-lg px-3 py-2 transition-all duration-300 relative ${
+                        className={`${message.messageType === 'audio' ? 'w-full' : 'max-w-[80%]'} rounded-lg px-3 py-2 transition-all duration-300 relative ${
                           isOwnMessage
                             ? 'bg-primary text-primary-foreground'
                             : 'bg-muted'
@@ -601,17 +651,20 @@ export default function DirectMessageWidget({
                             <img
                               src={message.imageUrl}
                               alt="Shared image"
-                              className="max-w-full h-auto rounded-lg mb-2"
+                              className="max-w-full h-auto rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => handleImageClick(message.imageUrl!)}
                             />
                             <p className="text-sm">{message.message}</p>
                           </div>
                         ) : message.messageType === 'audio' && message.audioUrl ? (
-                          <div>
-                            <audio controls className="w-full mb-2">
+                          <div className="w-full">
+                            <audio controls className="w-full mb-2 min-h-[40px]">
                               <source src={message.audioUrl} type="audio/wav" />
                               Your browser does not support the audio element.
                             </audio>
-                            <p className="text-sm">{message.message}</p>
+                            {message.message && message.message !== '🎵 Audio' && (
+                              <p className="text-sm">{message.message}</p>
+                            )}
                           </div>
                         ) : (
                           <p className="text-sm">{message.message}</p>
@@ -724,6 +777,14 @@ export default function DirectMessageWidget({
           </div>
         </CardContent>
       </Card>
+
+      {/* Image Lightbox */}
+      <ImageLightbox
+        isOpen={showImageLightbox}
+        onClose={() => setShowImageLightbox(false)}
+        images={getImageMessages()}
+        currentImageIndex={currentImageIndex}
+      />
     </div>
   );
 }

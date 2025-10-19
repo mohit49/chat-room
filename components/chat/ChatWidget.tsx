@@ -20,6 +20,7 @@ import {
   MicOff
 } from 'lucide-react';
 import AudioRecorder from './AudioRecorder';
+import ImageLightbox from './ImageLightbox';
 import { ImageCompressor } from '@/lib/utils/imageCompression';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
@@ -152,6 +153,8 @@ export default function ChatWidget({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [showImageLightbox, setShowImageLightbox] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map()); // userId -> username
   const [isTyping, setIsTyping] = useState(false);
   const [displayRoomId, setDisplayRoomId] = useState<string>(roomId);
@@ -411,13 +414,36 @@ export default function ChatWidget({
 
       const response = await api.sendMessage(messageData);
       if (response.success) {
+        // Optimistically add the message to UI immediately
+        const responseMessage = response.message || response.data?.message;
+        const newMessageData: ChatMessage = {
+          id: responseMessage?.id || `temp-${Date.now()}`,
+          roomId: roomId,
+          userId: user?.id || '',
+          username: user?.username || user?.mobileNumber || 'You',
+          message: messageData.message,
+          messageType: messageData.messageType || 'text',
+          imageUrl: messageData.imageUrl,
+          audioUrl: messageData.audioUrl,
+          timestamp: new Date().toISOString(),
+          userProfilePicture: user?.profile?.profilePicture
+        };
+
+        // Add message to local state immediately for instant feedback
+        setMessages(prev => {
+          // Check if it already exists (in case socket event arrived first)
+          const exists = prev.some(msg => msg.id === newMessageData.id);
+          if (exists) return prev;
+          return [...prev, newMessageData];
+        });
+        
+        scrollToBottom();
+        
+        // Clear the form
         setNewMessage('');
         setImageFile(null);
         setImagePreview(null);
         setAudioFile(null);
-
-        // The API call already handles real-time emission via socket
-        // No need to emit separately to avoid duplicates
       } else {
         alert('Failed to send message');
       }
@@ -557,6 +583,29 @@ export default function ChatWidget({
     return isOnline;
   };
 
+  // Get all image messages for lightbox
+  const getImageMessages = () => {
+    return messages
+      .filter(msg => msg.messageType === 'image' && msg.imageUrl)
+      .map(msg => ({
+        id: msg.id,
+        imageUrl: msg.imageUrl!,
+        message: msg.message,
+        timestamp: msg.timestamp,
+        senderUsername: msg.username
+      }));
+  };
+
+  const handleImageClick = (imageUrl: string) => {
+    const imageMessages = getImageMessages();
+    const imageIndex = imageMessages.findIndex(img => img.imageUrl === imageUrl);
+    
+    if (imageIndex !== -1) {
+      setCurrentImageIndex(imageIndex);
+      setShowImageLightbox(true);
+    }
+  };
+
   const formatTime = (timestamp: string) => {
     try {
       const messageDate = new Date(timestamp);
@@ -603,7 +652,7 @@ export default function ChatWidget({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 w-96 h-[600px] z-50 flex flex-col overflow-hidden">
+    <div className="fixed bottom-4 right-4 w-[500px] h-[700px] z-50 flex flex-col overflow-hidden">
       <Card className="h-full flex flex-col shadow-2xl border-2 p-0">
         {/* Chat Header */}
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 border-b">
@@ -727,6 +776,7 @@ export default function ChatWidget({
                 
                 {messages.map((message) => {
                   const isOwnMessage = message.userId === user?.id;
+                  const isAudioMessage = message.messageType === 'audio';
                   
                   return (
                     <div key={message.id} className={`flex items-start space-x-3 ${isOwnMessage ? 'flex-row-reverse space-x-reverse' : ''}`}>
@@ -761,7 +811,7 @@ export default function ChatWidget({
                             {formatTime(message.timestamp)}
                           </span>
                         </div>
-                        <div className={`rounded-lg p-3 max-w-xs ${
+                        <div className={`rounded-lg p-3 ${isAudioMessage ? 'w-full' : 'max-w-xs'} ${
                           isOwnMessage 
                             ? 'bg-primary text-primary-foreground ml-auto' 
                             : 'bg-muted'
@@ -771,17 +821,20 @@ export default function ChatWidget({
                               <img
                                 src={message.imageUrl}
                                 alt="Chat image"
-                                className="max-w-full h-auto rounded-lg mb-2"
+                                className="max-w-full h-auto rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => handleImageClick(message.imageUrl!)}
                               />
                               <p className="text-sm">{message.message}</p>
                             </div>
                           ) : message.messageType === 'audio' && message.audioUrl ? (
-                            <div>
-                              <audio controls className="w-full mb-2">
+                            <div className="w-full">
+                              <audio controls className="w-full mb-2 min-h-[40px]">
                                 <source src={message.audioUrl} type="audio/wav" />
                                 Your browser does not support the audio element.
                               </audio>
-                              <p className="text-sm">{message.message}</p>
+                              {message.message && message.message !== '🎵 Audio' && (
+                                <p className="text-sm">{message.message}</p>
+                              )}
                             </div>
                           ) : (
                             <p className="text-sm">{message.message}</p>
@@ -908,6 +961,14 @@ export default function ChatWidget({
           </div>
         )}
       </Card>
+
+      {/* Image Lightbox */}
+      <ImageLightbox
+        isOpen={showImageLightbox}
+        onClose={() => setShowImageLightbox(false)}
+        images={getImageMessages()}
+        currentImageIndex={currentImageIndex}
+      />
     </div>
   );
 }
