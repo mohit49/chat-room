@@ -261,6 +261,22 @@ export const api = {
     }
     return apiClient.post('/chat/direct-message/upload-audio', formData, token);
   },
+
+  async deleteDirectMessage(messageId: string): Promise<ApiResponse> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    return apiClient.delete(`/chat/direct-message/${messageId}`, token);
+  },
+
+  async deleteConversation(userId: string): Promise<ApiResponse> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    return apiClient.delete(`/chat/direct-message/conversation/${userId}`, token);
+  },
 };
 
 

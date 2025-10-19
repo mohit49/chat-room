@@ -6,8 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Send, Loader2, MessageCircle, Image as ImageIcon } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { X, Send, Loader2, MessageCircle, Image as ImageIcon, Volume2, VolumeX, Trash2, MoreVertical } from 'lucide-react';
 import AudioRecorder from './AudioRecorder';
+import { ImageCompressor } from '@/lib/utils/imageCompression';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
@@ -53,8 +55,8 @@ export default function DirectMessageWidget({
   targetUser 
 }: DirectMessageWidgetProps) {
   const { user } = useAuth();
-  const { socket, connected, connectionConfirmed } = useSocket();
-  const { playMessageSound } = useSound();
+  const { socket, connected, connectionConfirmed, isUserOnline } = useSocket();
+  const { soundEnabled, toggleSound, playMessageSound } = useSound();
   
   // Memoize socket event handlers
   const handleDirectMessage = useCallback((data: DirectMessage) => {
@@ -108,12 +110,24 @@ export default function DirectMessageWidget({
     );
   }, [user?.id]);
 
+  const handleMessageDeleted = useCallback((data: { messageId: string }) => {
+    // Remove deleted message from local state
+    setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
+  }, []);
+
+  const handleConversationDeleted = useCallback(() => {
+    // Clear all messages when conversation is deleted
+    setMessages([]);
+  }, []);
+
   // Socket events
   const socketEvents = useSocketEvents({
     onDirectMessage: handleDirectMessage,
     onMessageStatus: handleMessageStatus,
     onDirectMessageTyping: handleDirectMessageTyping,
-    onMessagesRead: handleMessagesRead
+    onMessagesRead: handleMessagesRead,
+    onMessageDeleted: handleMessageDeleted,
+    onConversationDeleted: handleConversationDeleted
   }, `DirectMessageWidget-${targetUser.id}`);
   
   const [messages, setMessages] = useState<DirectMessage[]>([]);
@@ -125,6 +139,8 @@ export default function DirectMessageWidget({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isTargetUserTyping, setIsTargetUserTyping] = useState(false);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -261,25 +277,62 @@ export default function DirectMessageWidget({
     setAudioFile(audioFile);
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        alert('Image size must be less than 5MB');
-        return;
-      }
+    if (!file) return;
 
+    try {
+      // Validate file type
       if (!file.type.startsWith('image/')) {
         alert('Please select a valid image file');
         return;
       }
 
-      setImageFile(file);
+      // Check if compression is needed
+      const shouldCompress = ImageCompressor.shouldCompress(file, 500); // 500KB threshold
+      
+      console.log('📸 Image upload debug:', {
+        fileName: file.name,
+        originalSize: (file.size / 1024).toFixed(2) + ' KB',
+        shouldCompress,
+        fileType: file.type
+      });
+      
+      let processedFile = file;
+      
+      if (shouldCompress) {
+        console.log('📸 Starting image compression...');
+        try {
+          // Compress image: max 800x600, 80% quality
+          processedFile = await ImageCompressor.compressImage(file, 800, 600, 0.8);
+          console.log('✅ Image compression completed');
+        } catch (compressionError) {
+          console.error('❌ Image compression failed:', compressionError);
+          // Use original file if compression fails
+          processedFile = file;
+        }
+      } else {
+        console.log('📸 Image size OK, no compression needed');
+      }
+
+      // Final size check after compression
+      if (processedFile.size > 5 * 1024 * 1024) { // 5MB absolute limit
+        alert('Image size is still too large after compression. Please choose a smaller image.');
+        return;
+      }
+
+      setImageFile(processedFile);
+      
+      // Create preview from processed file
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processedFile);
+      
+    } catch (error) {
+      console.error('Error processing image:', error);
+      alert('Failed to process image. Please try again.');
     }
   };
 
@@ -289,6 +342,53 @@ export default function DirectMessageWidget({
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    if (!socket) return;
+
+    // Find the message to get its details
+    const messageToDelete = messages.find(msg => msg.id === messageId);
+    if (!messageToDelete) return;
+
+    // Only allow deleting own messages
+    if (messageToDelete.senderId !== user?.id) {
+      alert('You can only delete your own messages');
+      return;
+    }
+
+    // Emit socket event for real-time deletion
+    socket.emit('delete_message', {
+      messageId,
+      senderId: user.id,
+      receiverId: targetUser.id,
+      messageType: messageToDelete.messageType,
+      imageUrl: messageToDelete.imageUrl,
+      audioUrl: messageToDelete.audioUrl
+    });
+
+    // Remove message locally immediately for instant feedback
+    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+  };
+
+  const handleDeleteConversation = () => {
+    if (!socket) return;
+
+    if (!window.confirm('Are you sure you want to delete this entire conversation? This cannot be undone.')) {
+      return;
+    }
+
+    // Emit socket event for real-time conversation deletion
+    socket.emit('delete_conversation', {
+      senderId: user?.id,
+      receiverId: targetUser.id
+    });
+
+    // Clear all messages locally immediately
+    setMessages([]);
+    
+    // Close the chat widget
+    onClose();
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -392,21 +492,61 @@ export default function DirectMessageWidget({
                 {targetUser.username.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <h3 className="font-semibold">{targetUser.username}</h3>
-              <p className="text-xs text-muted-foreground">
-                {connected ? 'Online' : 'Offline'}
-              </p>
+            <div className="flex items-center space-x-2">
+              <div>
+                <h3 className="font-semibold">{targetUser.username}</h3>
+              </div>
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  isUserOnline(targetUser.id) ? 'bg-green-500' : 'bg-gray-400'
+                }`}
+                title={isUserOnline(targetUser.id) ? 'Online' : 'Offline'}
+              />
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="h-8 w-8"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleSound}
+              className="h-8 w-8 p-0"
+              title={soundEnabled ? "Disable sound" : "Enable sound"}
+            >
+              {soundEnabled ? (
+                <Volume2 className="h-4 w-4" />
+              ) : (
+                <VolumeX className="h-4 w-4" />
+              )}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={handleDeleteConversation}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Conversation
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="h-8 w-8"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
 
         <CardContent className="flex-1 p-0 flex flex-col overflow-hidden">
@@ -431,10 +571,10 @@ export default function DirectMessageWidget({
                       key={message.id}
                       className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} ${
                         isNewMessage ? 'animate-pulse' : ''
-                      }`}
+                      } group`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-lg px-3 py-2 transition-all duration-300 ${
+                        className={`max-w-[80%] rounded-lg px-3 py-2 transition-all duration-300 relative ${
                           isOwnMessage
                             ? 'bg-primary text-primary-foreground'
                             : 'bg-muted'
@@ -444,6 +584,18 @@ export default function DirectMessageWidget({
                             : ''
                         }`}
                       >
+                        {/* Delete button for own messages */}
+                        {isOwnMessage && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteMessage(message.id)}
+                            className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-red-500 text-white hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Delete message"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
                         {message.messageType === 'image' && message.imageUrl ? (
                           <div>
                             <img

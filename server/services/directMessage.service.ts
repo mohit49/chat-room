@@ -100,6 +100,18 @@ class DirectMessageServiceImpl {
     const { directMessageModelDB } = await import('../models/directMessage.model');
     return await directMessageModelDB.markMessagesAsSeen(userId, otherUserId);
   }
+
+  async deleteMessage(messageId: string, userId: string): Promise<boolean> {
+    // Import the model to avoid circular dependency
+    const { directMessageModelDB } = await import('../models/directMessage.model');
+    return await directMessageModelDB.deleteMessage(messageId, userId);
+  }
+
+  async deleteConversation(userId1: string, userId2: string): Promise<boolean> {
+    // Import the model to avoid circular dependency
+    const { directMessageModelDB } = await import('../models/directMessage.model');
+    return await directMessageModelDB.deleteConversation(userId1, userId2);
+  }
 }
 
 export const directMessageService = new DirectMessageServiceImpl();

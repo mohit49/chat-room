@@ -9,13 +9,17 @@ export interface SocketEventHandlers {
   onDirectMessage?: (message: any) => void;
   onMessageStatus?: (data: { messageId: string; status: 'sent' | 'delivered' | 'read' }) => void;
   onMessagesRead?: (data: { readBy: string; readByUsername: string; timestamp: string }) => void;
+  onMessageDeleted?: (data: { messageId: string }) => void;
+  onConversationDeleted?: () => void;
   
   // Typing events
   onUserTyping?: (data: { userId: string; isTyping: boolean; username: string; roomId: string }) => void;
   onDirectMessageTyping?: (data: { userId: string; isTyping: boolean; username: string }) => void;
   
   // Online status events
-  onUserOnlineStatus?: (data: { userId: string; isOnline: boolean }) => void;
+  onUserOnlineStatus?: (data: { userId: string; isOnline: boolean; socketId?: string }) => void;
+  onOnlineUsersUpdate?: (users: string[]) => void;
+  onSocketMappingUpdate?: (data: { userId: string; newSocketId: string; oldSocketId?: string }) => void;
   onRoomMembersStatus?: (members: any[]) => void;
   onUserJoinedRoom?: (data: { userId: string; username: string }) => void;
   onUserLeftRoom?: (data: { userId: string; username: string }) => void;
@@ -109,6 +113,22 @@ export class SocketEventManager {
     // Online status events
     this.socket.on('user_online_status', (data: { userId: string; isOnline: boolean }) => {
       this.broadcastToHandlers('onUserOnlineStatus', data);
+    });
+
+    this.socket.on('online_users_update', (users: string[]) => {
+      this.broadcastToHandlers('onOnlineUsersUpdate', users);
+    });
+
+    this.socket.on('socket_mapping_update', (data: { userId: string; newSocketId: string; oldSocketId?: string }) => {
+      this.broadcastToHandlers('onSocketMappingUpdate', data);
+    });
+
+    this.socket.on('message_deleted', (data: { messageId: string }) => {
+      this.broadcastToHandlers('onMessageDeleted', data);
+    });
+
+    this.socket.on('conversation_deleted', () => {
+      this.broadcastToHandlers('onConversationDeleted');
     });
 
     this.socket.on('room_members_status', (members: any[]) => {

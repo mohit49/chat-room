@@ -140,5 +140,67 @@ export const directMessageController = {
     } catch (error: any) {
       next(error);
     }
+  },
+
+  // Delete a specific message
+  deleteMessage: async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { messageId } = req.params;
+      const userId = req.userId!;
+
+      if (!messageId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Message ID is required'
+        });
+      }
+
+      const success = await directMessageService.deleteMessage(messageId, userId);
+      
+      if (success) {
+        res.json({
+          success: true,
+          message: 'Message deleted successfully'
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: 'Message not found or you do not have permission to delete it'
+        });
+      }
+    } catch (error: any) {
+      next(error);
+    }
+  },
+
+  // Delete entire conversation
+  deleteConversation: async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { userId: otherUserId } = req.params;
+      const userId = req.userId!;
+
+      if (!otherUserId) {
+        return res.status(400).json({
+          success: false,
+          error: 'User ID is required'
+        });
+      }
+
+      const success = await directMessageService.deleteConversation(userId, otherUserId);
+      
+      if (success) {
+        res.json({
+          success: true,
+          message: 'Conversation deleted successfully'
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: 'Conversation not found'
+        });
+      }
+    } catch (error: any) {
+      next(error);
+    }
   }
 };

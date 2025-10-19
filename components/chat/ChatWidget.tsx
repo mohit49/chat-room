@@ -20,6 +20,7 @@ import {
   MicOff
 } from 'lucide-react';
 import AudioRecorder from './AudioRecorder';
+import { ImageCompressor } from '@/lib/utils/imageCompression';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -431,19 +432,46 @@ export default function ChatWidget({
     setAudioFile(audioFile);
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        alert('Image size must be less than 5MB');
+    if (!file) return;
+
+    try {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file');
         return;
       }
-      setImageFile(file);
+
+      // Check if compression is needed
+      const shouldCompress = ImageCompressor.shouldCompress(file, 500); // 500KB threshold
+      
+      let processedFile = file;
+      
+      if (shouldCompress) {
+        console.log('📸 Compressing image...');
+        // Compress image: max 800x600, 80% quality
+        processedFile = await ImageCompressor.compressImage(file, 800, 600, 0.8);
+      }
+
+      // Final size check after compression
+      if (processedFile.size > 5 * 1024 * 1024) { // 5MB absolute limit
+        alert('Image size is still too large after compression. Please choose a smaller image.');
+        return;
+      }
+
+      setImageFile(processedFile);
+      
+      // Create preview from processed file
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processedFile);
+      
+    } catch (error) {
+      console.error('Error processing image:', error);
+      alert('Failed to process image. Please try again.');
     }
   };
 

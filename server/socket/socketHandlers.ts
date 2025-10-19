@@ -9,8 +9,15 @@ interface AuthenticatedSocket extends Socket {
   user?: any;
 }
 
-// Store connected users
+// Store connected users with session management
 export const connectedUsers = new Map<string, string>(); // userId -> socketId
+export const userSessions = new Map<string, {
+  socketId: string;
+  sessionId: string;
+  userId: string;
+  username: string;
+  connectedAt: Date;
+}>(); // sessionId -> user info
 
 export const setupSocketHandlers = (io: SocketIOServer) => {
   console.log('🔌 Setting up Socket.IO handlers');
@@ -21,17 +28,21 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
     // Handle authentication after connection
     socket.on('authenticate', async (data) => {
       try {
+        const { token, sessionId, reuseSession } = data;
+        
         console.log('🔌 Authentication attempt:', {
           socketId: socket.id,
-          hasToken: !!data.token
+          sessionId,
+          reuseSession,
+          hasToken: !!token
         });
         
-        if (!data.token) {
+        if (!token) {
           socket.emit('auth_error', { message: 'No token provided' });
           return;
         }
 
-        const decoded = jwt.verify(data.token, config.jwt.secret) as any;
+        const decoded = jwt.verify(token, config.jwt.secret) as any;
         const user = await User.findById(decoded.userId);
         
         if (!user) {
@@ -42,26 +53,63 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
         socket.userId = user._id.toString();
         socket.user = user;
         
-        console.log(`✅ Socket authenticated for user: ${socket.userId}`);
+        // Check if user was previously connected with different socket
+        const oldSocketId = connectedUsers.get(socket.userId);
+        if (oldSocketId && oldSocketId !== socket.id) {
+          console.log(`🔄 User ${socket.userId} reconnecting - updating socket ID mapping`);
+          console.log(`   Old socket: ${oldSocketId} → New socket: ${socket.id}`);
+          
+          // Disconnect old socket if it exists
+          const oldSocket = io.sockets.sockets.get(oldSocketId);
+          if (oldSocket) {
+            console.log(`🔌 Disconnecting old socket: ${oldSocketId}`);
+            oldSocket.disconnect(true);
+          }
+        }
         
-        // Store user connection
+        // Update user connection mapping
         connectedUsers.set(socket.userId, socket.id);
-        console.log(`👤 Stored connection for user ${socket.userId} -> socket ${socket.id}`);
+        
+        // Store session info
+        if (sessionId) {
+          userSessions.set(sessionId, {
+            socketId: socket.id,
+            sessionId,
+            userId: socket.userId,
+            username: user.username || user.mobileNumber,
+            connectedAt: new Date()
+          });
+          console.log(`📋 Session stored: ${sessionId} → User: ${socket.userId}`);
+        }
         
         // Join user to their personal room for notifications
         socket.join(`user_${socket.userId}`);
         
-        // Send connection confirmation
+        // Send connection confirmation with session info
         socket.emit('connection_confirmed', {
           userId: socket.userId,
+          username: user.username || user.mobileNumber,
           socketId: socket.id,
+          sessionId,
           message: 'Successfully connected to notification service'
         });
 
-        // Send user online status to all rooms they're in
-        socket.emit('user_online_status', {
+        // Broadcast online status to all users with updated socket mapping
+        io.emit('user_online_status', {
           userId: socket.userId,
-          isOnline: true
+          isOnline: true,
+          socketId: socket.id // Include new socket ID
+        });
+        
+        // Send current online users list to all users (refresh mappings)
+        const onlineUsersList = Array.from(connectedUsers.keys());
+        io.emit('online_users_update', onlineUsersList);
+        
+        // Notify all connected users about the socket mapping update
+        socket.broadcast.emit('socket_mapping_update', {
+          userId: socket.userId,
+          newSocketId: socket.id,
+          oldSocketId: oldSocketId
         });
         
       } catch (error) {
@@ -134,6 +182,73 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
         username: socket.user?.username || socket.user?.mobileNumber,
         isTyping: isTyping
       });
+    });
+
+    // Handle real-time message deletion
+    socket.on('delete_message', async (data) => {
+      try {
+        const { messageId, senderId, receiverId, messageType, imageUrl, audioUrl } = data;
+        
+        // Verify the sender is the one deleting
+        if (senderId !== socket.userId) {
+          socket.emit('delete_error', { error: 'You can only delete your own messages' });
+          return;
+        }
+
+        // Delete from database
+        const { directMessageService } = await import('../services/directMessage.service');
+        const success = await directMessageService.deleteMessage(messageId, senderId);
+        
+        if (success) {
+          // Delete associated files if they exist
+          if (imageUrl || audioUrl) {
+            const { deleteFile } = await import('../utils/fileDelete');
+            if (imageUrl) await deleteFile(imageUrl);
+            if (audioUrl) await deleteFile(audioUrl);
+          }
+
+          // Broadcast deletion to both users
+          io.to(`user_${receiverId}`).emit('message_deleted', { messageId });
+          io.to(`user_${senderId}`).emit('message_deleted', { messageId });
+          
+          console.log(`✅ Message ${messageId} deleted in real-time`);
+        } else {
+          socket.emit('delete_error', { error: 'Failed to delete message' });
+        }
+      } catch (error) {
+        console.error('❌ Error deleting message:', error);
+        socket.emit('delete_error', { error: 'Failed to delete message' });
+      }
+    });
+
+    // Handle real-time conversation deletion
+    socket.on('delete_conversation', async (data) => {
+      try {
+        const { senderId, receiverId } = data;
+        
+        // Verify the sender
+        if (senderId !== socket.userId) {
+          socket.emit('delete_error', { error: 'Unauthorized' });
+          return;
+        }
+
+        // Delete conversation from database
+        const { directMessageService } = await import('../services/directMessage.service');
+        const success = await directMessageService.deleteConversation(senderId, receiverId);
+        
+        if (success) {
+          // Broadcast conversation deletion to both users
+          io.to(`user_${receiverId}`).emit('conversation_deleted');
+          io.to(`user_${senderId}`).emit('conversation_deleted');
+          
+          console.log(`✅ Conversation between ${senderId} and ${receiverId} deleted in real-time`);
+        } else {
+          socket.emit('delete_error', { error: 'Failed to delete conversation' });
+        }
+      } catch (error) {
+        console.error('❌ Error deleting conversation:', error);
+        socket.emit('delete_error', { error: 'Failed to delete conversation' });
+      }
     });
 
     // Handle message read status
@@ -307,9 +422,31 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
     socket.on('disconnect', async () => {
       console.log(`🔌 User ${socket.userId} disconnected`);
       if (socket.userId) {
-        connectedUsers.delete(socket.userId);
+        // Only remove from connectedUsers if this is the current socket for this user
+        const currentSocketId = connectedUsers.get(socket.userId);
+        if (currentSocketId === socket.id) {
+          connectedUsers.delete(socket.userId);
+          console.log(`🗑️ Removed user ${socket.userId} from connected users`);
+          
+          // Broadcast offline status to all users
+          socket.broadcast.emit('user_online_status', {
+            userId: socket.userId,
+            isOnline: false
+          });
+        } else {
+          console.log(`🔄 User ${socket.userId} has newer connection, keeping online status`);
+        }
         
-        // Notify all rooms that this user went offline
+        // Clean up session info for this socket
+        for (const [sessionId, sessionInfo] of userSessions.entries()) {
+          if (sessionInfo.socketId === socket.id) {
+            userSessions.delete(sessionId);
+            console.log(`🗑️ Cleaned up session: ${sessionId}`);
+            break;
+          }
+        }
+        
+        // Notify all rooms that this user's status may have changed
         const rooms = Array.from(socket.rooms).filter(room => room.startsWith('room_'));
         for (const room of rooms) {
           const roomId = room.replace('room_', '');
@@ -318,6 +455,19 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
       }
     });
   });
+};
+
+// Helper function to get current socket ID for user
+export const getCurrentSocketId = (userId: string): string | undefined => {
+  return connectedUsers.get(userId);
+};
+
+// Helper function to update socket mapping when user reconnects
+export const updateUserSocketMapping = (userId: string, newSocketId: string, oldSocketId?: string) => {
+  if (oldSocketId && oldSocketId !== newSocketId) {
+    console.log(`🔄 Updating socket mapping for user ${userId}: ${oldSocketId} → ${newSocketId}`);
+  }
+  connectedUsers.set(userId, newSocketId);
 };
 
 // Helper function to send notification to user
