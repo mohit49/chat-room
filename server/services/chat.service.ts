@@ -8,8 +8,9 @@ interface SendMessageData {
   roomId: string;
   userId: string;
   message: string;
-  messageType: 'text' | 'image';
+  messageType: 'text' | 'image' | 'audio';
   imageUrl?: string;
+  audioUrl?: string;
 }
 
 export const chatService = {
@@ -103,7 +104,7 @@ export const chatService = {
 
   async sendMessage(data: SendMessageData): Promise<ApiResponse> {
     try {
-      const { roomId, userId, message, messageType, imageUrl } = data;
+      const { roomId, userId, message, messageType, imageUrl, audioUrl } = data;
 
       console.log('🔍 sendMessage called with:', {
         roomId,
@@ -160,6 +161,7 @@ export const chatService = {
         message,
         messageType,
         imageUrl,
+        audioUrl,
         timestamp: new Date(),
         userProfilePicture: user.profile?.profilePicture
       });
@@ -187,6 +189,7 @@ export const chatService = {
             message: chatMessage.message,
             messageType: chatMessage.messageType,
             imageUrl: chatMessage.imageUrl,
+            audioUrl: chatMessage.audioUrl,
             timestamp: chatMessage.timestamp,
             userProfilePicture: chatMessage.userProfilePicture
           }
@@ -231,6 +234,42 @@ export const chatService = {
     } catch (error) {
       console.error('Error uploading image:', error);
       return { success: false, error: 'Failed to upload image' };
+    }
+  },
+
+  async uploadAudio(file: Express.Multer.File, roomId: string, userId: string): Promise<ApiResponse> {
+    try {
+      // Check if user is a member of the room
+      const room = await RoomModel.findById(roomId);
+      if (!room) {
+        return { success: false, error: 'Room not found' };
+      }
+
+      const member = room.members.find(m => m.userId === userId);
+      if (!member) {
+        return { success: false, error: 'You are not a member of this room' };
+      }
+
+      // Check if user has permission to send messages
+      if (member.role !== 'admin' && member.role !== 'editor') {
+        return { success: false, error: 'You do not have permission to send messages' };
+      }
+
+      // Upload file
+      const uploadResult = await uploadFile(file, 'chat-audio');
+      if (!uploadResult.success) {
+        return { success: false, error: 'Failed to upload audio' };
+      }
+
+      return {
+        success: true,
+        data: {
+          audioUrl: uploadResult.url
+        }
+      };
+    } catch (error) {
+      console.error('Error uploading audio:', error);
+      return { success: false, error: 'Failed to upload audio' };
     }
   }
 };

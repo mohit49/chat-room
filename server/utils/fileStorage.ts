@@ -115,4 +115,47 @@ export const uploadFile = async (file: Express.Multer.File, subfolder: string = 
   }
 };
 
+// Enhanced file upload utility with organized folder structure
+export const uploadChatFile = async (
+  file: Express.Multer.File, 
+  senderId: string, 
+  receiverId: string, 
+  fileType: 'images' | 'audio'
+): Promise<{ success: boolean; url?: string; error?: string }> => {
+  try {
+    if (!file) {
+      return { success: false, error: 'No file provided' };
+    }
+
+    // Create organized folder structure: direct-messages/senderId-receiverId/date/fileType
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const conversationId = `${senderId}-${receiverId}`;
+    const subfolder = path.join('direct-messages', conversationId, today, fileType);
+    
+    const targetDir = path.join(UPLOADS_DIR, subfolder);
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+
+    // Generate unique filename with sender info
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 15);
+    const fileExtension = path.extname(file.originalname);
+    const fileName = `${senderId}_${timestamp}_${randomString}${fileExtension}`;
+    
+    const filePath = path.join(targetDir, fileName);
+    
+    // Write file to disk
+    fs.writeFileSync(filePath, file.buffer);
+    
+    // Return relative URL
+    const relativeUrl = `/uploads/${subfolder}/${fileName}`;
+    
+    return { success: true, url: relativeUrl };
+  } catch (error) {
+    console.error('Error uploading file:', error);
+    return { success: false, error: 'Failed to upload file' };
+  }
+};
+
 

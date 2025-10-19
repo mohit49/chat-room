@@ -121,17 +121,50 @@ export const chatController = {
       }
 
       const result = await chatService.uploadImage(req.file, roomId, userId);
-      
+
       if (result.success) {
         res.json({
           success: true,
-          imageUrl: result.data?.imageUrl
+          data: {
+            imageUrl: result.data?.imageUrl
+          }
         });
       } else {
         res.status(400).json(result);
       }
     } catch (error) {
       console.error('Error uploading image:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  },
+
+  async uploadAudio(req: Request, res: Response) {
+    try {
+      const userId = req.userId;
+      const { roomId } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: 'No audio file provided' });
+      }
+
+      const result = await chatService.uploadAudio(req.file, roomId, userId);
+
+      if (result.success) {
+        res.json({
+          success: true,
+          data: {
+            audioUrl: result.data?.audioUrl
+          }
+        });
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error('Error uploading audio:', error);
       res.status(500).json({ success: false, error: 'Internal server error' });
     }
   }

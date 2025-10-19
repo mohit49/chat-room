@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Send, Loader2, MessageCircle } from 'lucide-react';
+import { X, Send, Loader2, MessageCircle, Image as ImageIcon } from 'lucide-react';
+import AudioRecorder from './AudioRecorder';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
@@ -33,7 +34,9 @@ interface DirectMessage {
   senderId: string;
   receiverId: string;
   message: string;
-  messageType: 'text' | 'image';
+  messageType: 'text' | 'image' | 'audio';
+  imageUrl?: string;
+  audioUrl?: string;
   timestamp: string;
   senderUsername: string;
   senderProfilePicture?: {
@@ -57,7 +60,12 @@ export default function DirectMessageWidget({
   const handleDirectMessage = useCallback((data: DirectMessage) => {
     // Only add message if it's from the target user or to the target user
     if (data.senderId === targetUser.id || data.receiverId === targetUser.id) {
-      setMessages(prev => [...prev, data]);
+      // Check if message already exists to avoid duplicates
+      setMessages(prev => {
+        const exists = prev.some(msg => msg.id === data.id);
+        if (exists) return prev;
+        return [...prev, data];
+      });
       scrollToBottom();
       
       // Play sound for new messages (only if not from current user)
@@ -113,9 +121,13 @@ export default function DirectMessageWidget({
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [newMessageId, setNewMessageId] = useState<string | null>(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isTargetUserTyping, setIsTargetUserTyping] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch messages when component opens
   useEffect(() => {
@@ -179,7 +191,7 @@ export default function DirectMessageWidget({
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || sending || !user) return;
+    if ((!newMessage.trim() && !audioFile && !imageFile) || sending || !user) return;
 
     // Stop typing indicator when sending
     socketEvents.emit('direct_message_typing', {
@@ -189,35 +201,93 @@ export default function DirectMessageWidget({
 
     try {
       setSending(true);
-      const response = await api.sendDirectMessage(targetUser.id, newMessage.trim());
-      
+
+      let messageData: any = {
+        receiverId: targetUser.id,
+        message: newMessage.trim() || (audioFile ? '🎵 Audio' : '📷 Image'),
+        messageType: 'text'
+      };
+
+      // Handle audio upload
+      if (audioFile) {
+        const formData = new FormData();
+        formData.append('audio', audioFile);
+        formData.append('receiverId', targetUser.id);
+
+        const uploadResponse = await api.uploadDirectMessageAudio(formData);
+        if (uploadResponse.success) {
+          messageData.audioUrl = uploadResponse.data?.audioUrl;
+          messageData.messageType = 'audio';
+        } else {
+          alert('Failed to upload audio');
+          return;
+        }
+      }
+      // Handle image upload
+      else if (imageFile) {
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        formData.append('receiverId', targetUser.id);
+
+        const uploadResponse = await api.uploadDirectMessageImage(formData);
+        if (uploadResponse.success) {
+          messageData.imageUrl = uploadResponse.data?.imageUrl;
+          messageData.messageType = 'image';
+        } else {
+          alert('Failed to upload image');
+          return;
+        }
+      }
+
+      const response = await api.sendDirectMessage(targetUser.id, messageData.message, messageData.messageType, messageData.imageUrl, messageData.audioUrl);
+
       if (response.success) {
-        // Add message to local state immediately
-        const newMsg: DirectMessage = {
-          id: response.data?.messageId || Date.now().toString(),
-          senderId: user.id,
-          receiverId: targetUser.id,
-          message: newMessage.trim(),
-          messageType: 'text',
-          timestamp: new Date().toISOString(),
-          senderUsername: user.username || 'You',
-          senderProfilePicture: user.profile?.profilePicture
-        };
-        
-        setMessages(prev => [...prev, newMsg]);
+        // Don't add message locally - it will come via socket for real-time updates
+        // Just clear the form
         setNewMessage('');
-        setNewMessageId(newMsg.id);
-        scrollToBottom();
-        
-        // Clear the new message highlight after a short delay
-        setTimeout(() => {
-          setNewMessageId(null);
-        }, 2000);
+        setAudioFile(null);
+        setImageFile(null);
+        setImagePreview(null);
       }
     } catch (error) {
       console.error('Failed to send direct message:', error);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleAudioRecordingComplete = (audioBlob: Blob) => {
+    const audioFile = new File([audioBlob], `recording-${Date.now()}.wav`, { type: 'audio/wav' });
+    setAudioFile(audioFile);
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        alert('Image size must be less than 5MB');
+        return;
+      }
+
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file');
+        return;
+      }
+
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -374,7 +444,26 @@ export default function DirectMessageWidget({
                             : ''
                         }`}
                       >
-                        <p className="text-sm">{message.message}</p>
+                        {message.messageType === 'image' && message.imageUrl ? (
+                          <div>
+                            <img
+                              src={message.imageUrl}
+                              alt="Shared image"
+                              className="max-w-full h-auto rounded-lg mb-2"
+                            />
+                            <p className="text-sm">{message.message}</p>
+                          </div>
+                        ) : message.messageType === 'audio' && message.audioUrl ? (
+                          <div>
+                            <audio controls className="w-full mb-2">
+                              <source src={message.audioUrl} type="audio/wav" />
+                              Your browser does not support the audio element.
+                            </audio>
+                            <p className="text-sm">{message.message}</p>
+                          </div>
+                        ) : (
+                          <p className="text-sm">{message.message}</p>
+                        )}
                         <p className="text-xs opacity-70 mt-1">
                           {formatMessageTime(message.timestamp)}
                         </p>
@@ -401,7 +490,43 @@ export default function DirectMessageWidget({
           </ScrollArea>
 
           <div className="p-4 border-t absolute bottom-0 left-0 right-0 z-10 bg-muted/50 rounded-b-lg">
-            <div className="flex gap-2">
+            {(audioFile || imagePreview) && (
+              <div className="mb-2">
+                {audioFile && (
+                  <div className="mb-2 p-2 bg-muted rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm">🎵 Audio message ready to send</div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setAudioFile(null)}
+                        className="h-6 w-6 p-0"
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {imagePreview && (
+                  <div className="mb-2 relative">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-20 h-20 object-cover rounded-lg"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={removeImage}
+                      className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex gap-2 items-center">
               <Input
                 value={newMessage}
                 onChange={handleInputChange}
@@ -410,10 +535,32 @@ export default function DirectMessageWidget({
                 disabled={sending}
                 className="flex-1"
               />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageSelect}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-blue-500 hover:bg-blue-50 bg-white shadow-md shrink-0 h-10 w-10"
+                title="Upload image"
+              >
+                <ImageIcon className="h-5 w-5 text-blue-600" />
+              </Button>
+              <AudioRecorder
+                onRecordingComplete={handleAudioRecordingComplete}
+                disabled={sending}
+              />
               <Button
                 onClick={handleSendMessage}
-                disabled={!newMessage.trim() || sending}
+                disabled={(!newMessage.trim() && !audioFile && !imageFile) || sending}
                 size="icon"
+                className="shrink-0"
               >
                 {sending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

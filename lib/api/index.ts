@@ -140,12 +140,12 @@ export const api = {
   },
 
   // Direct messaging
-  async sendDirectMessage(userId: string, message: string): Promise<ApiResponse> {
+  async sendDirectMessage(userId: string, message: string, messageType: 'text' | 'image' | 'audio' = 'text', imageUrl?: string, audioUrl?: string): Promise<ApiResponse> {
     const token = getAuthToken();
     if (!token) {
       throw new Error('Authentication token not found');
     }
-    return apiClient.post('/chat/direct-message', { receiverId: userId, message }, token);
+    return apiClient.post('/chat/direct-message', { receiverId: userId, message, messageType, imageUrl, audioUrl }, token);
   },
 
   async getDirectMessages(userId: string): Promise<ApiResponse> {
@@ -219,8 +219,9 @@ export const api = {
   async sendMessage(data: {
     roomId: string;
     message: string;
-    messageType: 'text' | 'image';
+    messageType: 'text' | 'image' | 'audio';
     imageUrl?: string;
+    audioUrl?: string;
   }): Promise<ApiResponse> {
     const token = getAuthToken();
     if (!token) {
@@ -235,6 +236,30 @@ export const api = {
       throw new Error('Authentication token not found');
     }
     return apiClient.post('/chat/upload-image', formData, token);
+  },
+
+  async uploadChatAudio(formData: FormData): Promise<ApiResponse> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    return apiClient.post('/chat/upload-audio', formData, token);
+  },
+
+  async uploadDirectMessageImage(formData: FormData): Promise<ApiResponse> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    return apiClient.post('/chat/direct-message/upload-image', formData, token);
+  },
+
+  async uploadDirectMessageAudio(formData: FormData): Promise<ApiResponse> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    return apiClient.post('/chat/direct-message/upload-audio', formData, token);
   },
 };
 

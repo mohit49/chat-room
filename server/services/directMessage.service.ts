@@ -6,7 +6,9 @@ export interface DirectMessage {
   senderId: string;
   receiverId: string;
   message: string;
-  messageType: 'text' | 'image';
+  messageType: 'text' | 'image' | 'audio';
+  imageUrl?: string;
+  audioUrl?: string;
   timestamp: string;
   senderUsername: string;
   senderProfilePicture?: {
@@ -32,11 +34,11 @@ export interface Conversation {
 }
 
 class DirectMessageServiceImpl {
-  async sendDirectMessage(senderId: string, receiverId: string, message: string): Promise<DirectMessage> {
+  async sendDirectMessage(senderId: string, receiverId: string, message: string, messageType: 'text' | 'image' | 'audio' = 'text', imageUrl?: string, audioUrl?: string): Promise<DirectMessage> {
     // Check if users exist
     const sender = await storage.getUserById(senderId);
     const receiver = await storage.getUserById(receiverId);
-    
+
     if (!sender) {
       throw new NotFoundError('Sender not found');
     }
@@ -56,7 +58,9 @@ class DirectMessageServiceImpl {
       senderId,
       receiverId,
       message,
-      messageType: 'text',
+      messageType,
+      imageUrl,
+      audioUrl,
       timestamp: new Date().toISOString(),
       senderUsername: sender.username || 'Unknown',
       senderProfilePicture: sender.profile?.profilePicture

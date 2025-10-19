@@ -19,6 +19,7 @@ import {
   Mic,
   MicOff
 } from 'lucide-react';
+import AudioRecorder from './AudioRecorder';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -32,8 +33,9 @@ interface ChatMessage {
   userId: string;
   username: string;
   message: string;
-  messageType: 'text' | 'image';
+  messageType: 'text' | 'image' | 'audio';
   imageUrl?: string;
+  audioUrl?: string;
   timestamp: string;
   userProfilePicture?: {
     type: 'upload' | 'avatar';
@@ -148,6 +150,7 @@ export default function ChatWidget({
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map()); // userId -> username
   const [isTyping, setIsTyping] = useState(false);
   const [displayRoomId, setDisplayRoomId] = useState<string>(roomId);
@@ -356,7 +359,7 @@ export default function ChatWidget({
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() && !imageFile) return;
+    if (!newMessage.trim() && !imageFile && !audioFile) return;
     if (!canSendMessages) return;
 
     try {
@@ -366,12 +369,31 @@ export default function ChatWidget({
         messageType: 'text'
       };
 
+      // Handle audio upload
+      if (audioFile) {
+        const formData = new FormData();
+        formData.append('audio', audioFile);
+        formData.append('roomId', roomId);
+
+        const uploadResponse = await api.uploadChatAudio(formData);
+        if (uploadResponse.success) {
+          messageData = {
+            roomId,
+            message: newMessage.trim() || '🎵 Audio',
+            messageType: 'audio',
+            audioUrl: uploadResponse.data?.audioUrl
+          };
+        } else {
+          alert('Failed to upload audio');
+          return;
+        }
+      }
       // Handle image upload
-      if (imageFile) {
+      else if (imageFile) {
         const formData = new FormData();
         formData.append('image', imageFile);
         formData.append('roomId', roomId);
-        
+
         const uploadResponse = await api.uploadChatImage(formData);
         if (uploadResponse.success) {
           messageData = {
@@ -391,7 +413,8 @@ export default function ChatWidget({
         setNewMessage('');
         setImageFile(null);
         setImagePreview(null);
-        
+        setAudioFile(null);
+
         // The API call already handles real-time emission via socket
         // No need to emit separately to avoid duplicates
       } else {
@@ -401,6 +424,11 @@ export default function ChatWidget({
       console.error('Error sending message:', error);
       alert('Failed to send message');
     }
+  };
+
+  const handleAudioRecordingComplete = (audioBlob: Blob) => {
+    const audioFile = new File([audioBlob], `recording-${Date.now()}.wav`, { type: 'audio/wav' });
+    setAudioFile(audioFile);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -719,6 +747,14 @@ export default function ChatWidget({
                               />
                               <p className="text-sm">{message.message}</p>
                             </div>
+                          ) : message.messageType === 'audio' && message.audioUrl ? (
+                            <div>
+                              <audio controls className="w-full mb-2">
+                                <source src={message.audioUrl} type="audio/wav" />
+                                Your browser does not support the audio element.
+                              </audio>
+                              <p className="text-sm">{message.message}</p>
+                            </div>
                           ) : (
                             <p className="text-sm">{message.message}</p>
                           )}
@@ -802,13 +838,18 @@ export default function ChatWidget({
                 />
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
+                  variant="outline"
+                  size="icon"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-3"
+                  className="border-2 border-blue-500 hover:bg-blue-50 bg-white shadow-md shrink-0 h-10 w-10"
+                  title="Upload image"
                 >
-                  <ImageIcon className="h-4 w-4" />
+                  <ImageIcon className="h-5 w-5 text-blue-600" />
                 </Button>
+                <AudioRecorder
+                  onRecordingComplete={handleAudioRecordingComplete}
+                  disabled={!canSendMessages}
+                />
                 {canBroadcast && (
                   <Button
                     type="button"
@@ -826,7 +867,7 @@ export default function ChatWidget({
                   </Button>
                 )}
               </div>
-              <Button type="submit" size="sm" disabled={!newMessage.trim() && !imageFile}>
+              <Button type="submit" size="sm" disabled={!newMessage.trim() && !imageFile && !audioFile}>
                 <Send className="h-4 w-4" />
               </Button>
             </form>

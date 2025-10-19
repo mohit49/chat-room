@@ -8,7 +8,7 @@ export const directMessageController = {
   // Send direct message
   sendDirectMessage: async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const { receiverId, message } = req.body;
+      const { receiverId, message, messageType = 'text', imageUrl, audioUrl } = req.body;
       const senderId = req.userId!;
 
       if (!receiverId || !message) {
@@ -25,13 +25,10 @@ export const directMessageController = {
         });
       }
 
-      const result = await directMessageService.sendDirectMessage(senderId, receiverId, message);
+      const result = await directMessageService.sendDirectMessage(senderId, receiverId, message, messageType, imageUrl, audioUrl);
       
       // Send notification to receiver
       try {
-        console.log('🔍 Debug - Notification senderId type:', typeof senderId, 'value:', senderId);
-        console.log('🔍 Debug - Notification receiverId type:', typeof receiverId, 'value:', receiverId);
-
         await sendNotificationToUser(io, receiverId, {
           type: 'direct_message',
           title: 'New Message',
@@ -51,22 +48,25 @@ export const directMessageController = {
             conversationId: `${senderId}_${receiverId}`
           }
         });
-
-        console.log('✅ Notification processed for direct message');
         
         // Also emit direct_message event for real-time chat updates
         try {
-          // Send to receiver's personal room
-          io.to(`user_${receiverId}`).emit('direct_message', {
+          const messageData = {
             id: result.id,
             senderId: senderId,
             receiverId: receiverId,
             message: result.message,
-            messageType: 'text',
+            messageType: result.messageType,
+            imageUrl: result.imageUrl,
+            audioUrl: result.audioUrl,
             timestamp: result.timestamp,
             senderUsername: result.senderUsername,
             senderProfilePicture: result.senderProfilePicture
-          });
+          };
+
+          // Send to both sender and receiver for real-time updates
+          io.to(`user_${receiverId}`).emit('direct_message', messageData);
+          io.to(`user_${senderId}`).emit('direct_message', messageData);
         } catch (socketError) {
           console.error('❌ Failed to send direct message event:', socketError);
         }

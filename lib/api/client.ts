@@ -17,28 +17,21 @@ export class ApiClient {
   ): Promise<T> {
     try {
       const url = `${this.baseURL}${endpoint}`;
-      console.log('API Client request:', {
-        url,
+      
+      // For FormData, don't set Content-Type - let browser handle it
+      const requestOptions: RequestInit = {
         method: options.method,
-        headers: options.headers,
-        body: options.body
-      });
-      
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
+        body: options.body,
         credentials: 'include',
-      });
+      };
+
+      // Only add headers if provided
+      if (options.headers && Object.keys(options.headers).length > 0) {
+        requestOptions.headers = options.headers;
+      }
       
-      console.log('API Client response:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        headers: Object.fromEntries(response.headers.entries())
-      });
+      const response = await fetch(url, requestOptions);
+      
 
       // Handle unauthorized (401) or forbidden (403)
       if (response.status === 401) {
@@ -52,7 +45,6 @@ export class ApiClient {
       }
 
       const data = await response.json();
-      console.log('API Client response data:', data);
 
       if (!response.ok) {
         console.error('API Client error response:', data);

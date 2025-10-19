@@ -8,8 +8,9 @@ class DirectMessageModelDB {
     senderId: string;
     receiverId: string;
     message: string;
-    messageType: 'text' | 'image';
+    messageType: 'text' | 'image' | 'audio';
     imageUrl?: string;
+    audioUrl?: string;
     senderUsername: string;
     senderProfilePicture?: {
       type: 'upload' | 'avatar';

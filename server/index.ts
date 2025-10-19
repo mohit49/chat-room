@@ -73,9 +73,26 @@ database.connect();
 
 // Middleware
 app.use(cors(config.cors));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Only parse JSON for non-multipart requests
+app.use((req, res, next) => {
+  if (req.url.includes('/upload-image') || req.url.includes('/upload-audio')) {
+    next(); // Skip all body parsing for upload routes
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
+app.use((req, res, next) => {
+  if (req.url.includes('/upload-image') || req.url.includes('/upload-audio')) {
+    next(); // Skip URL encoding for upload routes
+  } else {
+    express.urlencoded({ extended: true })(req, res, next);
+  }
+});
 app.use(cookieParser());
+
+// Serve static files from public/uploads directory
+app.use('/uploads', express.static('public/uploads'));
 
 // Multer configuration for file uploads
 const upload = multer({
@@ -84,10 +101,10 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('audio/')) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new Error('Only image and audio files are allowed'));
     }
   }
 });

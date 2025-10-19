@@ -5,8 +5,9 @@ export interface IDirectMessage extends Document {
   senderId: string; // User who sent the message
   receiverId: string; // User who received the message
   message: string;
-  messageType: 'text' | 'image';
+  messageType: 'text' | 'image' | 'audio';
   imageUrl?: string;
+  audioUrl?: string;
   timestamp: Date;
   senderUsername: string;
   senderProfilePicture?: {
@@ -15,8 +16,6 @@ export interface IDirectMessage extends Document {
     avatarStyle?: string;
     seed?: string;
   };
-  status: 'sent' | 'delivered' | 'read';
-  readAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,7 +39,7 @@ const DirectMessageSchema = new Schema<IDirectMessage>({
   },
   messageType: {
     type: String,
-    enum: ['text', 'image'],
+    enum: ['text', 'image', 'audio'],
     required: true,
     default: 'text'
   },
@@ -48,6 +47,12 @@ const DirectMessageSchema = new Schema<IDirectMessage>({
     type: String,
     required: function() {
       return this.messageType === 'image';
+    }
+  },
+  audioUrl: {
+    type: String,
+    required: function() {
+      return this.messageType === 'audio';
     }
   },
   timestamp: {
@@ -66,14 +71,6 @@ const DirectMessageSchema = new Schema<IDirectMessage>({
     url: String,
     avatarStyle: String,
     seed: String
-  },
-  status: {
-    type: String,
-    enum: ['sent', 'delivered', 'read'],
-    default: 'sent'
-  },
-  readAt: {
-    type: Date
   }
 }, {
   timestamps: true,

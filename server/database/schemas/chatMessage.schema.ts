@@ -5,8 +5,9 @@ export interface IChatMessage extends Document {
   userId: string;
   username: string;
   message: string;
-  messageType: 'text' | 'image';
+  messageType: 'text' | 'image' | 'audio';
   imageUrl?: string;
+  audioUrl?: string;
   timestamp: Date;
   userProfilePicture?: {
     type: 'upload' | 'avatar';
@@ -38,7 +39,7 @@ const ChatMessageSchema = new Schema<IChatMessage>({
   },
   messageType: {
     type: String,
-    enum: ['text', 'image'],
+    enum: ['text', 'image', 'audio'],
     required: true,
     default: 'text'
   },
@@ -46,6 +47,12 @@ const ChatMessageSchema = new Schema<IChatMessage>({
     type: String,
     required: function() {
       return this.messageType === 'image';
+    }
+  },
+  audioUrl: {
+    type: String,
+    required: function() {
+      return this.messageType === 'audio';
     }
   },
   timestamp: {
