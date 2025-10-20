@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Bell, BellOff, TestTube, MessageCircle, Users, UserPlus } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Bell, BellOff, TestTube, MessageCircle, Users, UserPlus, Mail, UserCheck } from 'lucide-react';
 import { usePushNotifications } from '@/lib/contexts/PushNotificationContext';
 import { useEnhancedNudge } from '@/lib/contexts/EnhancedNudgeContext';
 
@@ -31,8 +32,30 @@ export function EnhancedNotificationSettings() {
   } = useEnhancedNudge();
 
   const [testingNotification, setTestingNotification] = useState(false);
-  const [savedPushEnabled, setSavedPushEnabled] = useState(false);
+  const [savedPushEnabled, setSavedPushEnabled] = useState(true);  // Default to true
   const [loading, setLoading] = useState(true);
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    directMessages: true,
+    roomMessages: true,
+    follows: true,
+    roomInvites: true
+  });
+  const [autoRequestedPermission, setAutoRequestedPermission] = useState(false);
+
+  // Auto-request permission on mount if default
+  useEffect(() => {
+    if (!autoRequestedPermission && isInitialized && permission === 'default') {
+      setAutoRequestedPermission(true);
+      // Auto-request permission and subscribe
+      requestPermission().then(async (perm) => {
+        if (perm === 'granted') {
+          await subscribe();
+          await enablePushNotifications();
+          await saveNotificationSettings({ pushEnabled: true });
+        }
+      });
+    }
+  }, [isInitialized, permission, autoRequestedPermission]);
 
   // Load saved notification settings from backend
   useEffect(() => {
@@ -57,7 +80,13 @@ export function EnhancedNotificationSettings() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.settings) {
-          setSavedPushEnabled(data.settings.pushEnabled || false);
+          setSavedPushEnabled(data.settings.pushEnabled !== false);  // Default true
+          setNotificationPreferences({
+            directMessages: data.settings.directMessages !== false,
+            roomMessages: data.settings.roomMessages !== false,
+            follows: data.settings.follows !== false,
+            roomInvites: data.settings.roomInvites !== false
+          });
           console.log('✅ Loaded notification settings:', data.settings);
           
           // If push was enabled but subscription is lost, try to re-subscribe
@@ -72,6 +101,12 @@ export function EnhancedNotificationSettings() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePreferenceChange = async (key: string, value: boolean) => {
+    const newPreferences = { ...notificationPreferences, [key]: value };
+    setNotificationPreferences(newPreferences);
+    await saveNotificationSettings(newPreferences);
   };
 
   const handleToggleNotifications = async () => {
@@ -115,7 +150,9 @@ export function EnhancedNotificationSettings() {
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Notification settings saved to database:', data.settings);
-        setSavedPushEnabled(settings.pushEnabled || false);
+        if (settings.pushEnabled !== undefined) {
+          setSavedPushEnabled(settings.pushEnabled);
+        }
       } else {
         console.error('❌ Failed to save notification settings');
       }
@@ -245,67 +282,96 @@ export function EnhancedNotificationSettings() {
           </div>
         )}
 
-        {/* Test Notifications */}
-        <div className="space-y-4">
-          <div className="text-sm font-medium">Test Notifications</div>
-          
-          <div className="grid grid-cols-2 gap-2">
+        {/* Notification Preferences */}
+        {(isSubscribed || savedPushEnabled) && (
+          <div className="space-y-4 pt-4 border-t">
+            <div className="text-sm font-medium">Notification Types</div>
+            <div className="text-xs text-muted-foreground mb-3">
+              Choose which notifications you want to receive
+            </div>
+            
+            <div className="space-y-3">
+              {/* Direct Messages */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="direct-messages" className="text-sm cursor-pointer">
+                    Direct Messages
+                  </Label>
+                </div>
+                <Switch
+                  id="direct-messages"
+                  checked={notificationPreferences.directMessages}
+                  onCheckedChange={(checked) => handlePreferenceChange('directMessages', checked)}
+                />
+              </div>
+
+              {/* Room Messages */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="room-messages" className="text-sm cursor-pointer">
+                    Room Messages
+                  </Label>
+                </div>
+                <Switch
+                  id="room-messages"
+                  checked={notificationPreferences.roomMessages}
+                  onCheckedChange={(checked) => handlePreferenceChange('roomMessages', checked)}
+                />
+              </div>
+
+              {/* Follows */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="follows" className="text-sm cursor-pointer">
+                    New Followers
+                  </Label>
+                </div>
+                <Switch
+                  id="follows"
+                  checked={notificationPreferences.follows}
+                  onCheckedChange={(checked) => handlePreferenceChange('follows', checked)}
+                />
+              </div>
+
+              {/* Room Invites */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="room-invites" className="text-sm cursor-pointer">
+                    Room Invitations
+                  </Label>
+                </div>
+                <Switch
+                  id="room-invites"
+                  checked={notificationPreferences.roomInvites}
+                  onCheckedChange={(checked) => handlePreferenceChange('roomInvites', checked)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Test Button (collapsed) */}
+        <details className="pt-4 border-t">
+          <summary className="text-sm font-medium cursor-pointer text-muted-foreground hover:text-foreground">
+            Test Notifications (Developer)
+          </summary>
+          <div className="mt-4 space-y-2">
             <Button
               variant="outline"
               size="sm"
               onClick={handleTestNotification}
               disabled={!isSubscribed || testingNotification}
-              className="flex items-center gap-2"
+              className="w-full flex items-center justify-center gap-2"
             >
               <TestTube className="h-4 w-4" />
-              Basic Push
-            </Button>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTestMessageNudge}
-              disabled={testingNotification}
-              className="flex items-center gap-2"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Message
-            </Button>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTestFollowNudge}
-              disabled={testingNotification}
-              className="flex items-center gap-2"
-            >
-              <UserPlus className="h-4 w-4" />
-              Follow
-            </Button>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTestRoomNudge}
-              disabled={testingNotification}
-              className="flex items-center gap-2"
-            >
-              <Users className="h-4 w-4" />
-              Room
+              Send Test Push Notification
             </Button>
           </div>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleTestGeneralNudge}
-            disabled={testingNotification}
-            className="w-full flex items-center gap-2"
-          >
-            <Bell className="h-4 w-4" />
-            General Notification
-          </Button>
-        </div>
+        </details>
 
         {/* Status Information */}
         <div className="text-xs text-muted-foreground space-y-1">

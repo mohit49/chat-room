@@ -501,15 +501,6 @@ export default function ProfilePage() {
 
         {/* Notification Settings */}
         <EnhancedNotificationSettings />
-
-        {/* Test Panel - Remove this in production */}
-        <NudgeTestPanel />
-
-        {/* Socket & Push Test Panel - Remove this in production */}
-        <SocketAndPushTestPanel />
-
-        {/* Background Notification Test - Remove this in production */}
-        <BackgroundNotificationTest />
       </div>
     </div>
   );

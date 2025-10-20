@@ -23,7 +23,7 @@ const ProfilePictureSchema = new Schema<ProfilePicture>({
 
 // Notification Settings schema
 const NotificationSettingsSchema = new Schema({
-  pushEnabled: { type: Boolean, default: false },
+  pushEnabled: { type: Boolean, default: true },  // Enable by default
   emailEnabled: { type: Boolean, default: false },
   directMessages: { type: Boolean, default: true },
   roomMessages: { type: Boolean, default: true },
