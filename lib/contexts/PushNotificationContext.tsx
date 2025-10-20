@@ -50,15 +50,23 @@ export function PushNotificationProvider({ children }: PushNotificationProviderP
 
   const subscribe = async (): Promise<boolean> => {
     if (!isSupported || !isInitialized) {
+      console.log('❌ Cannot subscribe: not supported or not initialized');
       return false;
     }
 
+    console.log('📱 Starting push subscription...');
     const subscription = await pushNotificationService.subscribeToPush();
     const success = subscription !== null;
+    
+    console.log('📱 Subscription result:', success ? '✅ Success' : '❌ Failed');
+    
     setIsSubscribed(success);
     
     if (success) {
       setPermission('granted');
+      console.log('✅ Push notifications enabled successfully');
+    } else {
+      console.error('❌ Failed to create push subscription');
     }
 
     return success;

@@ -42,20 +42,39 @@ export function EnhancedNotificationSettings() {
   });
   const [autoRequestedPermission, setAutoRequestedPermission] = useState(false);
 
-  // Auto-request permission on mount if default
+  // Auto-request permission and subscribe on mount
   useEffect(() => {
-    if (!autoRequestedPermission && isInitialized && permission === 'default') {
-      setAutoRequestedPermission(true);
-      // Auto-request permission and subscribe
-      requestPermission().then(async (perm) => {
+    const autoEnableNotifications = async () => {
+      if (!isInitialized) return;
+
+      // If permission is default and not yet requested
+      if (permission === 'default' && !autoRequestedPermission) {
+        setAutoRequestedPermission(true);
+        console.log('📱 Auto-requesting notification permission...');
+        
+        const perm = await requestPermission();
         if (perm === 'granted') {
-          await subscribe();
-          await enablePushNotifications();
-          await saveNotificationSettings({ pushEnabled: true });
+          console.log('✅ Permission granted, subscribing...');
+          const subscribed = await subscribe();
+          if (subscribed) {
+            await enablePushNotifications();
+            await saveNotificationSettings({ pushEnabled: true });
+          }
         }
-      });
-    }
-  }, [isInitialized, permission, autoRequestedPermission]);
+      }
+      
+      // If permission already granted but not subscribed, auto-subscribe
+      else if (permission === 'granted' && !isSubscribed && savedPushEnabled) {
+        console.log('🔄 Permission granted but not subscribed. Auto-subscribing...');
+        const subscribed = await subscribe();
+        if (subscribed) {
+          await enablePushNotifications();
+        }
+      }
+    };
+
+    autoEnableNotifications();
+  }, [isInitialized, permission, isSubscribed, savedPushEnabled, autoRequestedPermission]);
 
   // Load saved notification settings from backend
   useEffect(() => {
@@ -70,7 +89,9 @@ export function EnhancedNotificationSettings() {
         return;
       }
 
-      const response = await fetch('/api/notifications/push/settings', {
+      // Use proper API base URL
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${apiUrl}/notifications/push/settings`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -90,9 +111,15 @@ export function EnhancedNotificationSettings() {
           console.log('✅ Loaded notification settings:', data.settings);
           
           // If push was enabled but subscription is lost, try to re-subscribe
-          if (data.settings.pushEnabled && !isSubscribed && isInitialized && permission === 'granted') {
-            console.log('🔄 Re-subscribing to push notifications...');
-            await subscribe();
+          if (data.settings.pushEnabled !== false && !isSubscribed && isInitialized) {
+            if (permission === 'granted') {
+              console.log('🔄 Settings say enabled but not subscribed. Re-subscribing...');
+              await subscribe();
+              await enablePushNotifications();
+            } else if (permission === 'default') {
+              console.log('📱 Settings say enabled but permission needed. Will request...');
+              // Will be handled by auto-request effect
+            }
           }
         }
       }
@@ -136,9 +163,18 @@ export function EnhancedNotificationSettings() {
   const saveNotificationSettings = async (settings: any) => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) {
+        console.error('❌ No auth token found');
+        return;
+      }
 
-      const response = await fetch('/api/notifications/push/settings', {
+      console.log('💾 Saving notification settings:', settings);
+
+      // Use proper API base URL (port 3001)
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      console.log('📡 API URL:', apiUrl);
+      
+      const response = await fetch(`${apiUrl}/notifications/push/settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -147,6 +183,8 @@ export function EnhancedNotificationSettings() {
         body: JSON.stringify(settings)
       });
 
+      console.log('📡 Response status:', response.status, response.statusText);
+
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Notification settings saved to database:', data.settings);
@@ -154,7 +192,11 @@ export function EnhancedNotificationSettings() {
           setSavedPushEnabled(settings.pushEnabled);
         }
       } else {
+        // Log the error response
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         console.error('❌ Failed to save notification settings');
+        console.error('❌ Status:', response.status);
+        console.error('❌ Error:', errorData);
       }
     } catch (error) {
       console.error('❌ Failed to save notification settings:', error);

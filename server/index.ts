@@ -298,6 +298,12 @@ app.post('/api/test-notification', async (req, res) => {
   }
 });
 
+// Check VAPID keys on startup
+console.log('🔐 Checking VAPID configuration...');
+console.log('VAPID Public Key:', process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ? '✅ Set' : '❌ Missing');
+console.log('VAPID Private Key:', process.env.VAPID_PRIVATE_KEY ? '✅ Set' : '❌ Missing');
+console.log('VAPID Email:', process.env.VAPID_EMAIL || 'mailto:admin@chatapp.com');
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user/follow', followRoutes);
@@ -307,10 +313,11 @@ app.use('/api/user/profile-picture', profilePictureRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/username', usernameRoutes);
 app.use('/api/rooms', roomRoutes);
-app.use('/api/notifications/push', pushNotificationRoutes);
+// IMPORTANT: More specific routes must come BEFORE general routes
+app.use('/api/notifications/push', pushNotificationRoutes);  // Must be before /api/notifications
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/chat/direct-message', directMessageRoutes);  // Must be before /api/chat
 app.use('/api/chat', chatRoutes);
-app.use('/api/chat/direct-message', directMessageRoutes);
 
 // Setup Socket.IO handlers
 setupSocketHandlers(io);

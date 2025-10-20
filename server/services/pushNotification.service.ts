@@ -69,10 +69,20 @@ class PushNotificationService {
     data?: any;
   }): Promise<boolean> {
     try {
+      console.log('📤 Attempting to send push notification to user:', userId);
+      console.log('📤 Payload:', payload);
+      
       const subscriptions = await PushSubscription.find({ userId });
+      console.log(`📱 Found ${subscriptions.length} push subscriptions for user:`, userId);
       
       if (subscriptions.length === 0) {
         console.log('ℹ️ No push subscriptions found for user:', userId);
+        return false;
+      }
+
+      // Check if VAPID keys are configured
+      if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+        console.error('❌ VAPID keys not configured - cannot send push notifications');
         return false;
       }
 
@@ -86,10 +96,14 @@ class PushNotificationService {
         vibrate: [200, 100, 200]
       });
 
+      console.log('📦 Push payload prepared:', pushPayload);
+
       const results = await Promise.allSettled(
         subscriptions.map(async (sub) => {
           try {
-            await webpush.sendNotification(
+            console.log('📨 Sending to endpoint:', sub.endpoint);
+            
+            const result = await webpush.sendNotification(
               {
                 endpoint: sub.endpoint,
                 keys: {
@@ -99,15 +113,22 @@ class PushNotificationService {
               },
               pushPayload
             );
-            console.log('✅ Push notification sent to:', userId);
+            
+            console.log('✅ Push notification sent successfully to:', userId);
+            console.log('📊 Response:', result);
             return true;
           } catch (error: any) {
+            console.error('❌ Error sending push to endpoint:', sub.endpoint);
+            console.error('❌ Error details:', {
+              message: error.message,
+              statusCode: error.statusCode,
+              body: error.body
+            });
+            
             // If subscription is invalid, remove it
             if (error.statusCode === 404 || error.statusCode === 410) {
               console.log('🗑️ Removing invalid push subscription');
               await PushSubscription.findByIdAndDelete(sub._id);
-            } else {
-              console.error('❌ Error sending push notification:', error);
             }
             throw error;
           }
@@ -115,7 +136,14 @@ class PushNotificationService {
       );
 
       const successCount = results.filter(r => r.status === 'fulfilled').length;
-      console.log(`✅ Sent push to ${successCount}/${subscriptions.length} subscriptions`);
+      console.log(`✅ Successfully sent push to ${successCount}/${subscriptions.length} subscriptions`);
+      
+      // Log failures
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`❌ Failed to send to subscription ${index}:`, result.reason);
+        }
+      });
       
       return successCount > 0;
     } catch (error) {
