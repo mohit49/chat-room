@@ -276,7 +276,7 @@ export default function ProfilePage() {
               // Only update location, preserve other fields
               setProfile(prev => ({
                 ...prev,
-                location: response.user.profile.location || prev.location
+                location: response.user?.profile?.location || prev.location
               }));
               setSuccess('Location updated successfully!');
               setTimeout(() => setSuccess(''), 3000);
