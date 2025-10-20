@@ -27,6 +27,9 @@ export const activeBroadcasts = new Map<string, {
   startedAt: Date;
 }>(); // roomId -> broadcast info
 
+// Store open direct message chats
+export const openDirectMessageChats = new Map<string, Set<string>>(); // userId -> Set of userIds they're chatting with
+
 export const setupSocketHandlers = (io: SocketIOServer) => {
   console.log('🔌 Setting up Socket.IO handlers');
   
@@ -249,6 +252,35 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
         username: socket.user?.username || socket.user?.mobileNumber,
         isTyping: isTyping
       });
+    });
+
+    // Handle opening direct message chat
+    socket.on('open_direct_chat', (data: { targetUserId: string }) => {
+      if (!socket.userId) return;
+      
+      // Track that this user has opened chat with targetUserId
+      if (!openDirectMessageChats.has(socket.userId)) {
+        openDirectMessageChats.set(socket.userId, new Set());
+      }
+      openDirectMessageChats.get(socket.userId)!.add(data.targetUserId);
+      
+      console.log(`💬 User ${socket.userId} opened chat with ${data.targetUserId}`);
+    });
+
+    // Handle closing direct message chat
+    socket.on('close_direct_chat', (data: { targetUserId: string }) => {
+      if (!socket.userId) return;
+      
+      // Remove from open chats
+      const userChats = openDirectMessageChats.get(socket.userId);
+      if (userChats) {
+        userChats.delete(data.targetUserId);
+        if (userChats.size === 0) {
+          openDirectMessageChats.delete(socket.userId);
+        }
+      }
+      
+      console.log(`💬 User ${socket.userId} closed chat with ${data.targetUserId}`);
     });
 
     // Handle real-time message deletion
@@ -567,6 +599,9 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
     socket.on('disconnect', async () => {
       console.log(`🔌 User ${socket.userId} disconnected`);
       if (socket.userId) {
+        // Clean up open direct message chats
+        openDirectMessageChats.delete(socket.userId);
+        
         // Only remove from connectedUsers if this is the current socket for this user
         const currentSocketId = connectedUsers.get(socket.userId);
         if (currentSocketId === socket.id) {
@@ -613,6 +648,12 @@ export const updateUserSocketMapping = (userId: string, newSocketId: string, old
     console.log(`🔄 Updating socket mapping for user ${userId}: ${oldSocketId} → ${newSocketId}`);
   }
   connectedUsers.set(userId, newSocketId);
+};
+
+// Helper function to check if user has direct chat open
+export const isDirectChatOpen = (userId: string, otherUserId: string): boolean => {
+  const userChats = openDirectMessageChats.get(userId);
+  return userChats ? userChats.has(otherUserId) : false;
 };
 
 // Helper function to send notification to user

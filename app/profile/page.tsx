@@ -273,7 +273,11 @@ export default function ProfilePage() {
             });
 
             if (response.success && response.user) {
-              setProfile(response.user.profile);
+              // Only update location, preserve other fields
+              setProfile(prev => ({
+                ...prev,
+                location: response.user.profile.location || prev.location
+              }));
               setSuccess('Location updated successfully!');
               setTimeout(() => setSuccess(''), 3000);
             } else {
@@ -382,10 +386,15 @@ export default function ProfilePage() {
               <div className="space-y-2">
                 <Label htmlFor="birthDate">Birth Date (Must be 16+ years old)</Label>
                 <DatePicker
-                  date={profile.birthDate ? new Date(profile.birthDate) : undefined}
+                  date={profile.birthDate ? new Date(profile.birthDate + 'T00:00:00') : undefined}
                   onDateChange={(selectedDate) => {
                     if (selectedDate) {
-                      const newBirthDate = selectedDate.toISOString().split('T')[0];
+                      // Format date using local timezone to avoid off-by-one errors
+                      const year = selectedDate.getFullYear();
+                      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                      const day = String(selectedDate.getDate()).padStart(2, '0');
+                      const newBirthDate = `${year}-${month}-${day}`;
+                      
                       const calculatedAge = calculateAge(newBirthDate);
                       setProfile({ ...profile, birthDate: newBirthDate, age: calculatedAge });
                       

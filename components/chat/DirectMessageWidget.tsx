@@ -155,8 +155,22 @@ export default function DirectMessageWidget({
     if (isOpen && user) {
       fetchMessages();
       markMessagesAsSeen();
+      
+      // Notify server that chat is open (to prevent push notifications)
+      if (socket) {
+        socket.emit('open_direct_chat', { targetUserId: targetUser.id });
+        console.log('💬 Notified server: Direct chat opened with', targetUser.id);
+      }
     }
-  }, [isOpen, user, targetUser.id]);
+    
+    // Cleanup when closing
+    return () => {
+      if (isOpen && socket && user) {
+        socket.emit('close_direct_chat', { targetUserId: targetUser.id });
+        console.log('💬 Notified server: Direct chat closed with', targetUser.id);
+      }
+    };
+  }, [isOpen, user, targetUser.id, socket]);
 
   // Mark messages as seen when chat opens
   const markMessagesAsSeen = async () => {

@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { directMessageService } from '../services/directMessage.service';
 import { AuthRequest } from '../middleware/auth';
-import { sendNotificationToUser, connectedUsers } from '../socket/socketHandlers';
+import { sendNotificationToUser, connectedUsers, isDirectChatOpen } from '../socket/socketHandlers';
+import { pushNotificationService } from '../services/pushNotification.service';
+import { UserModel } from '../database/schemas/user.schema';
 import { io } from '../index';
 
 export const directMessageController = {
@@ -26,6 +28,42 @@ export const directMessageController = {
       }
 
       const result = await directMessageService.sendDirectMessage(senderId, receiverId, message, messageType, imageUrl, audioUrl);
+      
+      // Check if receiver has push notifications enabled AND chat is NOT open
+      const receiver = await UserModel.findById(receiverId);
+      const hasPushEnabled = receiver?.profile?.notificationSettings?.pushEnabled && 
+                            receiver?.profile?.notificationSettings?.directMessages;
+      const isChatOpen = isDirectChatOpen(receiverId, senderId);
+      
+      console.log('📱 Push notification check:', {
+        receiverId,
+        hasPushEnabled,
+        isChatOpen,
+        shouldSend: hasPushEnabled && !isChatOpen
+      });
+      
+      // Send push notification ONLY if enabled AND chat is NOT open
+      if (hasPushEnabled && !isChatOpen) {
+        try {
+          await pushNotificationService.sendPushToUser(receiverId, {
+            title: `New message from ${result.senderUsername}`,
+            body: message.substring(0, 100),
+            icon: '/icon-192x192.svg',
+            data: {
+              type: 'direct_message',
+              senderId,
+              messageId: result.id,
+              senderUsername: result.senderUsername
+            }
+          });
+          console.log('✅ Push notification sent for direct message (chat not open)');
+        } catch (pushError) {
+          console.error('❌ Failed to send push notification:', pushError);
+          // Don't fail the request if push fails
+        }
+      } else if (isChatOpen) {
+        console.log('ℹ️ Skipping push notification - chat is currently open');
+      }
       
       // Send notification to receiver
       try {

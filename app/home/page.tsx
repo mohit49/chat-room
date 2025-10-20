@@ -17,6 +17,9 @@ import EditRoomModal from '@/components/room/EditRoomModal';
 import ChatWidget from '@/components/chat/ChatWidget';
 import { VoiceBroadcastProvider } from '@/lib/contexts/VoiceBroadcastContext';
 import { useSocket } from '@/lib/contexts/SocketContext';
+import ProfileCompletionBanner from '@/components/profile/ProfileCompletionBanner';
+import ProfileCompletionGuard from '@/components/profile/ProfileCompletionGuard';
+import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { api } from '@/lib/api';
 
 interface Room {
@@ -51,6 +54,7 @@ export default function HomePage() {
   const { user, logout } = useAuth();
   const { socket } = useSocket();
   const router = useRouter();
+  const { isComplete, missingFields } = useProfileCompletion();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -154,6 +158,12 @@ export default function HomePage() {
   };
 
   const handleChatNow = (room: Room) => {
+    // Check if profile is complete
+    if (!isComplete) {
+      router.push('/profile');
+      return;
+    }
+    
     setChatRoom(room);
     setIsChatOpen(true);
   };
@@ -212,13 +222,17 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-4 lg:py-8">
-      <div className="max-w-3xl mx-auto px-4 space-y-6">
-        {/* Header */}
-        <AppHeader 
-          {...APP_HEADER_CONFIGS.home}
-          onCreateRoom={() => setShowCreateModal(true)}
-        />
+    <div className="min-h-screen bg-background">
+      {/* Profile Completion Banner */}
+      <ProfileCompletionBanner isComplete={isComplete} missingFields={missingFields} />
+      
+      <div className="py-4 lg:py-8">
+        <div className="max-w-3xl mx-auto px-4 space-y-6">
+          {/* Header */}
+          <AppHeader 
+            {...APP_HEADER_CONFIGS.home}
+            onCreateRoom={() => setShowCreateModal(true)}
+          />
 
         {/* Profile Summary Card */}
         <Card>
@@ -275,17 +289,22 @@ export default function HomePage() {
         </Card>
 
         {/* My Rooms Section */}
-        <Card>
-          <CardHeader className='mb-3'>
-            <CardTitle className="flex items-center gap-3">
-              <Users className="h-5 w-5" />
-              My Rooms
-            </CardTitle>
-            <CardDescription>
-              Manage your chat rooms and collaborate with others
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-0">
+        <ProfileCompletionGuard 
+          isComplete={isComplete} 
+          missingFields={missingFields}
+          featureName="chat rooms and messaging"
+        >
+          <Card>
+            <CardHeader className='mb-3'>
+              <CardTitle className="flex items-center gap-3">
+                <Users className="h-5 w-5" />
+                My Rooms
+              </CardTitle>
+              <CardDescription>
+                Manage your chat rooms and collaborate with others
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-0">
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -446,6 +465,7 @@ export default function HomePage() {
             )}
           </CardContent>
         </Card>
+        </ProfileCompletionGuard>
 
         {/* Action Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -552,6 +572,7 @@ export default function HomePage() {
             />
           </VoiceBroadcastProvider>
         )}
+        </div>
       </div>
     </div>
   );

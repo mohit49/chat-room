@@ -9,6 +9,15 @@ export interface User {
   updatedAt: Date;
 }
 
+export interface NotificationSettings {
+  pushEnabled: boolean;
+  emailEnabled: boolean;
+  directMessages: boolean;
+  roomMessages: boolean;
+  follows: boolean;
+  roomInvites: boolean;
+}
+
 export interface UserProfile {
   birthDate: string;
   age: number;
@@ -16,6 +25,7 @@ export interface UserProfile {
   location: Location;
   profilePicture?: ProfilePicture;
   theme?: 'light' | 'dark' | 'system';
+  notificationSettings?: NotificationSettings;
 }
 
 export interface ProfilePicture {

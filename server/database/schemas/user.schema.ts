@@ -21,6 +21,16 @@ const ProfilePictureSchema = new Schema<ProfilePicture>({
   seed: { type: String },
 }, { _id: false });
 
+// Notification Settings schema
+const NotificationSettingsSchema = new Schema({
+  pushEnabled: { type: Boolean, default: false },
+  emailEnabled: { type: Boolean, default: false },
+  directMessages: { type: Boolean, default: true },
+  roomMessages: { type: Boolean, default: true },
+  follows: { type: Boolean, default: true },
+  roomInvites: { type: Boolean, default: true },
+}, { _id: false });
+
 // User Profile schema
 const UserProfileSchema = new Schema<UserProfile>({
   birthDate: { type: String, default: '' },
@@ -29,6 +39,7 @@ const UserProfileSchema = new Schema<UserProfile>({
   location: { type: LocationSchema, default: () => ({}) },
   profilePicture: { type: ProfilePictureSchema },
   theme: { type: String, enum: ['light', 'dark', 'system'], default: 'system' },
+  notificationSettings: { type: NotificationSettingsSchema, default: () => ({}) },
 }, { _id: false });
 
 // User schema

@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,7 @@ export default function AppHeader({
 }: AppHeaderProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const { isComplete } = useProfileCompletion();
   const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
 
   const handleLogout = async () => {
@@ -104,7 +106,7 @@ export default function AppHeader({
   return (
     <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-8 gap-4">
       {/* Top Row - Mobile: Icons only, Desktop: All sections */}
-      <div className="flex items-center justify-between lg:justify-start gap-4">
+      <div className="flex items-center justify-between w-full lg:justify-start gap-4">
         {/* Logo - Both Mobile and Desktop */}
         <div className="flex items-center gap-2">
           {/* Back Icon - Mobile only */}
@@ -125,8 +127,8 @@ export default function AppHeader({
 
         {/* Left Section - Navigation (Desktop only) */}
         <div className="hidden lg:flex items-center gap-6">
-        {/* Navigation Menu */}
-        {showNavigation && (
+        {/* Navigation Menu - Only show if profile is complete */}
+        {showNavigation && isComplete && (
           <div className="flex items-center gap-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -160,31 +162,20 @@ export default function AppHeader({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            
-            <ThemeToggle />
           </div>
         )}
         </div>
-
-        {/* Center Section - Search Icon (Desktop) */}
-        <div className="hidden lg:flex flex-1 justify-center px-4">
+        
+        {/* Right Section - Icons and Profile */}
+        <div className="flex items-center gap-2 lg:gap-4 ml-auto">
+          {/* Search - Desktop & Mobile */}
           <SearchBox />
-        </div>
-        
-        {/* Right Section - Profile */}
-        <div className="flex items-center gap-2 lg:gap-4">
-          {/* Search Icon - Mobile */}
-          <div className="lg:hidden">
-            <SearchBox />
-          </div>
           
-          {/* Theme Toggle - Mobile */}
-          <div className="lg:hidden">
+          {/* Theme Toggle - Desktop & Mobile */}
           <ThemeToggle />
-        </div>
-        
-        <MessageIcon />
-        <NotificationIcon />
+          
+          <MessageIcon />
+          <NotificationIcon />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center gap-2 lg:gap-3 px-2 lg:px-3 py-2 h-auto rounded-full hover:bg-accent">
@@ -248,8 +239,8 @@ export default function AppHeader({
 
       {/* Mobile Navigation Row */}
       <div className="lg:hidden flex items-center justify-between">
-        {/* Mobile Navigation Menu */}
-        {showNavigation && (
+        {/* Mobile Navigation Menu - Only show if profile is complete */}
+        {showNavigation && isComplete && (
           <div className="flex items-center gap-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

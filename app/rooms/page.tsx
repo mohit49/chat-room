@@ -23,6 +23,9 @@ import RoomSettings from '@/components/room/RoomSettings';
 import ChatWidget from '@/components/chat/ChatWidget';
 import { VoiceBroadcastProvider } from '@/lib/contexts/VoiceBroadcastContext';
 import { useSocket } from '@/lib/contexts/SocketContext';
+import ProfileCompletionBanner from '@/components/profile/ProfileCompletionBanner';
+import ProfileCompletionGuard from '@/components/profile/ProfileCompletionGuard';
+import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { api } from '@/lib/api';
 
 interface Room {
@@ -55,6 +58,7 @@ export default function RoomsPage() {
   const { user } = useAuth();
   const { socket } = useSocket();
   const router = useRouter();
+  const { isComplete, missingFields } = useProfileCompletion();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -179,6 +183,12 @@ export default function RoomsPage() {
   };
 
   const handleChatNow = (room: Room) => {
+    // Check if profile is complete
+    if (!isComplete) {
+      router.push('/profile');
+      return;
+    }
+    
     setChatRoom(room);
     setIsChatOpen(true);
   };
@@ -322,15 +332,24 @@ export default function RoomsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-4 lg:py-8">
-      <div className="max-w-6xl mx-auto px-4 space-y-6">
-        <AppHeader 
-          {...APP_HEADER_CONFIGS.rooms}
-          onCreateRoom={() => setShowCreateModal(true)}
-        />
+    <div className="min-h-screen bg-background">
+      {/* Profile Completion Banner */}
+      <ProfileCompletionBanner isComplete={isComplete} missingFields={missingFields} />
+      
+      <div className="py-4 lg:py-8">
+        <div className="max-w-6xl mx-auto px-4 space-y-6">
+          <AppHeader 
+            {...APP_HEADER_CONFIGS.rooms}
+            onCreateRoom={() => setShowCreateModal(true)}
+          />
 
-        {/* Rooms Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Rooms Grid */}
+          <ProfileCompletionGuard 
+            isComplete={isComplete} 
+            missingFields={missingFields}
+            featureName="chat rooms"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {rooms.map((room) => {
             const userRole = getCurrentUserRole(room);
             const broadcastState = activeBroadcasts.get(room.id);
@@ -475,9 +494,9 @@ export default function RoomsPage() {
               </Card>
             );
           })}
-        </div>
+            </div>
 
-        {rooms.length === 0 && (
+            {rooms.length === 0 && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Users className="h-12 w-12 text-muted-foreground mb-4" />
@@ -491,9 +510,10 @@ export default function RoomsPage() {
               </Button>
             </CardContent>
           </Card>
-        )}
+            )}
+          </ProfileCompletionGuard>
 
-        {/* Create Room Modal */}
+          {/* Create Room Modal */}
         <CreateRoomModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
@@ -607,6 +627,7 @@ export default function RoomsPage() {
             </DialogContent>
           </Dialog>
         )}
+        </div>
       </div>
     </div>
   );

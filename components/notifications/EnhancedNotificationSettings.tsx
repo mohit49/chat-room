@@ -31,22 +31,96 @@ export function EnhancedNotificationSettings() {
   } = useEnhancedNudge();
 
   const [testingNotification, setTestingNotification] = useState(false);
+  const [savedPushEnabled, setSavedPushEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load saved notification settings from backend
+  useEffect(() => {
+    loadNotificationSettings();
+  }, []);
+
+  const loadNotificationSettings = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch('/api/notifications/push/settings', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.settings) {
+          setSavedPushEnabled(data.settings.pushEnabled || false);
+          console.log('✅ Loaded notification settings:', data.settings);
+          
+          // If push was enabled but subscription is lost, try to re-subscribe
+          if (data.settings.pushEnabled && !isSubscribed && isInitialized && permission === 'granted') {
+            console.log('🔄 Re-subscribing to push notifications...');
+            await subscribe();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to load notification settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleToggleNotifications = async () => {
     if (isSubscribed) {
       await unsubscribe();
       await disablePushNotifications();
+      // Save to backend
+      await saveNotificationSettings({ pushEnabled: false });
     } else {
       if (permission === 'default') {
         const newPermission = await requestPermission();
         if (newPermission === 'granted') {
           await subscribe();
           await enablePushNotifications();
+          // Save to backend
+          await saveNotificationSettings({ pushEnabled: true });
         }
       } else if (permission === 'granted') {
         await subscribe();
         await enablePushNotifications();
+        // Save to backend
+        await saveNotificationSettings({ pushEnabled: true });
       }
+    }
+  };
+
+  const saveNotificationSettings = async (settings: any) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('/api/notifications/push/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(settings)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Notification settings saved to database:', data.settings);
+        setSavedPushEnabled(settings.pushEnabled || false);
+      } else {
+        console.error('❌ Failed to save notification settings');
+      }
+    } catch (error) {
+      console.error('❌ Failed to save notification settings:', error);
     }
   };
 
@@ -139,19 +213,29 @@ export function EnhancedNotificationSettings() {
           <div className="space-y-0.5">
             <div className="text-sm font-medium">Push Notifications</div>
             <div className="text-xs text-muted-foreground">
-              {permission === 'granted' && isSubscribed
-                ? 'Push notifications are enabled'
+              {permission === 'granted' && (isSubscribed || savedPushEnabled)
+                ? '✅ Push notifications are enabled and saved'
                 : permission === 'denied'
-                ? 'Push notifications are blocked'
+                ? '❌ Push notifications are blocked in browser'
+                : loading
+                ? 'Loading settings...'
                 : 'Click to enable push notifications'}
             </div>
           </div>
           <Switch
-            checked={isSubscribed}
+            checked={isSubscribed || savedPushEnabled}
             onCheckedChange={handleToggleNotifications}
-            disabled={!isInitialized || permission === 'denied'}
+            disabled={loading || !isInitialized || permission === 'denied'}
           />
         </div>
+
+        {savedPushEnabled && !isSubscribed && permission === 'granted' && (
+          <div className="rounded-lg border border-amber-500/20 bg-amber-50 p-3">
+            <p className="text-sm text-amber-900">
+              ⚠️ Push notifications are enabled in your settings but subscription is inactive. Click the toggle to reconnect.
+            </p>
+          </div>
+        )}
 
         {permission === 'denied' && (
           <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
@@ -225,10 +309,11 @@ export function EnhancedNotificationSettings() {
 
         {/* Status Information */}
         <div className="text-xs text-muted-foreground space-y-1">
-          <div>Status: {isInitialized ? 'Ready' : 'Initializing...'}</div>
-          <div>Permission: {permission}</div>
-          <div>Push Subscribed: {isSubscribed ? 'Yes' : 'No'}</div>
-          <div>Enhanced Service: {isPushEnabled() ? 'Enabled' : 'Disabled'}</div>
+          <div>Status: {isInitialized ? '✅ Ready' : '⏳ Initializing...'}</div>
+          <div>Permission: <span className="font-medium">{permission}</span></div>
+          <div>Active Subscription: <span className="font-medium">{isSubscribed ? 'Yes' : 'No'}</span></div>
+          <div>Saved in Profile: <span className="font-medium">{savedPushEnabled ? 'Enabled' : 'Disabled'}</span></div>
+          <div>Service: {isPushEnabled() ? '✅ Active' : '⏸️ Inactive'}</div>
         </div>
       </CardContent>
     </Card>

@@ -114,22 +114,41 @@ class PushNotificationService {
 
   async sendSubscriptionToServer(subscription: PushSubscription): Promise<void> {
     try {
-      await apiClient.post('/notifications/subscribe', {
+      const token = this.getAuthToken();
+      if (!token) {
+        console.error('No auth token found');
+        return;
+      }
+
+      await apiClient.post('/notifications/push/subscribe', {
         subscription: subscription.toJSON()
-      });
-      console.log('Subscription sent to server');
+      }, token);
+      console.log('✅ Subscription sent to server');
     } catch (error) {
-      console.error('Failed to send subscription to server:', error);
+      console.error('❌ Failed to send subscription to server:', error);
     }
   }
 
   async removeSubscriptionFromServer(): Promise<void> {
     try {
-      await apiClient.post('/notifications/unsubscribe');
-      console.log('Unsubscription sent to server');
+      const token = this.getAuthToken();
+      if (!token) {
+        console.error('No auth token found');
+        return;
+      }
+
+      await apiClient.post('/notifications/push/unsubscribe', {}, token);
+      console.log('✅ Unsubscription sent to server');
     } catch (error) {
-      console.error('Failed to remove subscription from server:', error);
+      console.error('❌ Failed to remove subscription from server:', error);
     }
+  }
+
+  private getAuthToken(): string | null {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('token');
+    }
+    return null;
   }
 
   async sendTestNotification(): Promise<void> {

@@ -12,11 +12,13 @@ import * as openPeeps from '@dicebear/open-peeps';
 import * as personas from '@dicebear/personas';
 import * as pixelArt from '@dicebear/pixel-art';
 import * as shapes from '@dicebear/shapes';
-import { Camera, User, Sparkles } from 'lucide-react';
+import { Camera, User, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ImageCropModal from './ImageCropModal';
 import AvatarSelector from './AvatarSelector';
 import { getOptimizedAvatar } from '@/lib/utils/avatarCompression';
+import { ImageCompressor } from '@/lib/utils/imageCompression';
+import { api } from '@/lib/api';
 
 interface AvatarUploaderProps {
   currentImage?: string;
@@ -49,6 +51,7 @@ export default function AvatarUploader({
   const [showCropModal, setShowCropModal] = useState(false);
   const [showAvatarSelector, setShowAvatarSelector] = useState(false);
   const [tempImage, setTempImage] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,13 +66,55 @@ export default function AvatarUploader({
     }
   };
 
-  const handleCropComplete = (croppedImage: string) => {
-    // Get optimized image with fallback if too large
-    const optimizedImage = getOptimizedAvatar(croppedImage, 'uploaded', 'user', 50000);
-    
-    onImageChange(optimizedImage, 'upload');
-    setShowCropModal(false);
-    setTempImage('');
+  const handleCropComplete = async (croppedImage: string) => {
+    try {
+      setUploading(true);
+      
+      // Convert base64 to blob
+      const response = await fetch(croppedImage);
+      const blob = await response.blob();
+      
+      // Check if compression needed (200KB = 204800 bytes)
+      let fileToUpload = blob;
+      const originalSizeKB = blob.size / 1024;
+      
+      console.log('📸 Profile picture size:', originalSizeKB.toFixed(2), 'KB');
+      
+      if (originalSizeKB > 200) {
+        console.log('🔧 Compressing profile picture...');
+        
+        // Convert blob to File for compression
+        const file = new File([blob], 'profile.jpg', { type: 'image/jpeg' });
+        
+        // Compress to max 800x800, 85% quality
+        const compressedFile = await ImageCompressor.compressImage(file, 800, 800, 0.85);
+        fileToUpload = compressedFile;
+        
+        const compressedSizeKB = compressedFile.size / 1024;
+        console.log('✅ Compressed to:', compressedSizeKB.toFixed(2), 'KB');
+      }
+      
+      // Create FormData and upload to server
+      const formData = new FormData();
+      formData.append('profilePicture', fileToUpload, 'profile.jpg');
+      
+      const uploadResponse = await api.uploadProfilePicture(formData);
+      
+      if (uploadResponse.success && uploadResponse.data?.url) {
+        console.log('✅ Profile picture uploaded:', uploadResponse.data.url);
+        onImageChange(uploadResponse.data.url, 'upload');
+      } else {
+        alert('Failed to upload profile picture: ' + (uploadResponse.error || 'Unknown error'));
+      }
+      
+      setShowCropModal(false);
+      setTempImage('');
+    } catch (error) {
+      console.error('❌ Error uploading profile picture:', error);
+      alert('Failed to upload profile picture. Please try again.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleAvatarSelect = (style: string, seed: string) => {
@@ -163,6 +208,15 @@ export default function AvatarUploader({
         className="hidden"
       />
 
+      {uploading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full z-10">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-white mx-auto mb-2" />
+            <p className="text-white text-sm">Uploading...</p>
+          </div>
+        </div>
+      )}
+      
       {showCropModal && (
         <ImageCropModal
           image={tempImage}

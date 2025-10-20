@@ -182,6 +182,23 @@ export const api = {
     return apiClient.put(API_ENDPOINTS.USERNAME.UPDATE, { username }, token);
   },
 
+  // Profile picture endpoints
+  async uploadProfilePicture(formData: FormData): Promise<ApiResponse> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    return apiClient.post('/user/profile-picture/upload', formData, token);
+  },
+
+  async deleteProfilePicture(): Promise<ApiResponse> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    return apiClient.delete('/user/profile-picture/delete', token);
+  },
+
   // Room endpoints
   ...roomApi,
 

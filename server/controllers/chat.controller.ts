@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { chatService } from '../services/chat.service';
+import { pushNotificationService } from '../services/pushNotification.service';
+import RoomModel from '../database/schemas/room.schema';
+import { UserModel } from '../database/schemas/user.schema';
 import { io } from '../index';
 
 export const chatController = {
@@ -96,6 +99,44 @@ export const chatController = {
           console.log('📤 Broadcasting message to room:', roomId, messageData);
           // Emit new_message event directly to room members
           io.to(`room_${roomId}`).emit('new_message', messageData);
+
+          // Send push notifications to room members (except sender)
+          try {
+            const room = await RoomModel.findById(roomId);
+            if (room) {
+              const memberIds = room.members
+                .filter(m => m.userId !== userId)
+                .map(m => m.userId);
+
+              // Get users with push enabled
+              const usersWithPush = await UserModel.find({
+                _id: { $in: memberIds },
+                'profile.notificationSettings.pushEnabled': true,
+                'profile.notificationSettings.roomMessages': true
+              });
+
+              if (usersWithPush.length > 0) {
+                await pushNotificationService.sendPushToMultipleUsers(
+                  usersWithPush.map(u => u._id.toString()),
+                  {
+                    title: room.name,
+                    body: `${messageData.username}: ${message.substring(0, 100)}`,
+                    icon: '/icon-192x192.svg',
+                    data: {
+                      type: 'room_message',
+                      roomId,
+                      messageId: messageData.id,
+                      senderUsername: messageData.username
+                    }
+                  }
+                );
+                console.log(`✅ Push notifications sent to ${usersWithPush.length} room members`);
+              }
+            }
+          } catch (pushError) {
+            console.error('❌ Failed to send push notifications to room:', pushError);
+            // Don't fail the request if push fails
+          }
         }
 
         res.json({
