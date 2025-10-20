@@ -30,9 +30,10 @@ function getApiUrl() {
 const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: true,
+  // Explicitly expose environment variables to the client
   env: {
     NEXT_PUBLIC_API_URL: getApiUrl(),
-    NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BNyl8P6zLZ1ytXdNKXOiiiKVGhGPzDoKSREjQjTJjrvKE3KPBtGs8lxFX2thiXRSZiTFtqdjBborCnzd6LH2xLo',
   },
   // Remove console logs in production
   compiler: {
