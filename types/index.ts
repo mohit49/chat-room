@@ -39,6 +39,10 @@ export interface Location {
   latitude: number;
   longitude: number;
   address: string;
+  area?: string;
+  city?: string;
+  state?: string;
+  isVisible?: boolean; // Privacy control - if false, location won't be shown in app
 }
 
 export type Gender = 'male' | 'female' | 'other' | '';
@@ -87,5 +91,9 @@ export interface UpdateLocationRequest {
   latitude?: number;
   longitude?: number;
   address?: string;
+  area?: string;
+  city?: string;
+  state?: string;
+  isVisible?: boolean;
 }
 

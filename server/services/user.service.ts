@@ -24,7 +24,11 @@ export class UserService {
       location: profileData.location ?? currentProfile.location ?? {
         latitude: 0,
         longitude: 0,
-        address: ''
+        address: '',
+        area: '',
+        city: '',
+        state: '',
+        isVisible: true
       },
       profilePicture: profileData.profilePicture ?? currentProfile.profilePicture,
     };
@@ -37,7 +41,15 @@ export class UserService {
 
   async updateLocation(
     userId: string,
-    locationData: { latitude?: number; longitude?: number; address?: string }
+    locationData: { 
+      latitude?: number; 
+      longitude?: number; 
+      address?: string;
+      area?: string;
+      city?: string;
+      state?: string;
+      isVisible?: boolean;
+    }
   ): Promise<User> {
     const user = await this.getUser(userId);
     
@@ -47,6 +59,10 @@ export class UserService {
         latitude: locationData.latitude ?? user.profile.location.latitude,
         longitude: locationData.longitude ?? user.profile.location.longitude,
         address: locationData.address ?? user.profile.location.address,
+        area: locationData.area ?? user.profile.location.area,
+        city: locationData.city ?? user.profile.location.city,
+        state: locationData.state ?? user.profile.location.state,
+        isVisible: locationData.isVisible !== undefined ? locationData.isVisible : user.profile.location.isVisible ?? true,
       },
     };
 

@@ -141,6 +141,29 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
           socketId: socket.id // Include new socket ID
         });
         
+        // Notify other users that this user came online
+        const userForBroadcast = await User.findById(socket.userId).select('username mobileNumber profile').lean();
+        if (userForBroadcast) {
+          socket.broadcast.emit('user_online', {
+            userId: socket.userId,
+            user: {
+              id: userForBroadcast._id.toString(),
+              username: userForBroadcast.username || userForBroadcast.mobileNumber,
+              mobileNumber: userForBroadcast.mobileNumber,
+              profile: {
+                profilePicture: userForBroadcast.profile?.profilePicture,
+                location: {
+                  city: userForBroadcast.profile?.location?.city,
+                  state: userForBroadcast.profile?.location?.state,
+                  isVisible: userForBroadcast.profile?.location?.isVisible
+                }
+              },
+              isOnline: true
+            }
+          });
+          console.log(`✅ Broadcast user_online event for user ${socket.userId}`);
+        }
+        
         // Send current online users list to all users (refresh mappings)
         const onlineUsersList = Array.from(connectedUsers.keys());
         io.emit('online_users_update', onlineUsersList);
@@ -514,6 +537,51 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
       });
     });
 
+    // Handle get online users request
+    socket.on('get_online_users', async () => {
+      if (!socket.userId) return;
+      
+      try {
+        console.log('📋 Get online users request from:', socket.userId);
+        
+        // Get all connected user IDs
+        const onlineUserIds = Array.from(connectedUsers.keys()).filter(id => id !== socket.userId);
+        console.log('👥 Online user IDs:', onlineUserIds);
+        
+        if (onlineUserIds.length === 0) {
+          socket.emit('online_users', { users: [] });
+          return;
+        }
+        
+        // Fetch user details from database
+        const users = await User.find({ _id: { $in: onlineUserIds } })
+          .select('username mobileNumber profile')
+          .lean();
+        
+        // Format users for response
+        const onlineUsers = users.map(user => ({
+          id: user._id.toString(),
+          username: user.username || user.mobileNumber,
+          mobileNumber: user.mobileNumber,
+          profile: {
+            profilePicture: user.profile?.profilePicture,
+            location: {
+              city: user.profile?.location?.city,
+              state: user.profile?.location?.state,
+              isVisible: user.profile?.location?.isVisible
+            }
+          },
+          isOnline: true
+        }));
+        
+        console.log('✅ Sending online users:', onlineUsers.length);
+        socket.emit('online_users', { users: onlineUsers });
+      } catch (error) {
+        console.error('❌ Error fetching online users:', error);
+        socket.emit('online_users', { users: [] });
+      }
+    });
+
     // Handle notification events
     socket.on('mark_notification_read', async (notificationId: string) => {
       if (!socket.userId) return;
@@ -613,6 +681,12 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
             userId: socket.userId,
             isOnline: false
           });
+          
+          // Also emit user_offline event
+          socket.broadcast.emit('user_offline', {
+            userId: socket.userId
+          });
+          console.log(`✅ Broadcast user_offline event for user ${socket.userId}`);
         } else {
           console.log(`🔄 User ${socket.userId} has newer connection, keeping online status`);
         }

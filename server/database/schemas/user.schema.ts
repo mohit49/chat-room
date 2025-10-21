@@ -11,6 +11,10 @@ const LocationSchema = new Schema<Location>({
   latitude: { type: Number, default: 0 },
   longitude: { type: Number, default: 0 },
   address: { type: String, default: '' },
+  area: { type: String, default: '' },
+  city: { type: String, default: '' },
+  state: { type: String, default: '' },
+  isVisible: { type: Boolean, default: true }, // Default to visible
 }, { _id: false });
 
 // Profile Picture schema

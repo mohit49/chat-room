@@ -21,6 +21,10 @@ export const updateLocationSchema = z.object({
     latitude: z.number().min(-90).max(90).optional(),
     longitude: z.number().min(-180).max(180).optional(),
     address: z.string().max(500).optional(),
+    area: z.string().max(200).optional(),
+    city: z.string().max(200).optional(),
+    state: z.string().max(200).optional(),
+    isVisible: z.boolean().optional(),
   }),
 });
 

@@ -11,6 +11,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import AvatarUploader from '@/components/profile/AvatarUploader';
 import UsernameInput from '@/components/profile/UsernameInput';
 import MobileNumberUpdate from '@/components/profile/MobileNumberUpdate';
+import LocationUpdate from '@/components/profile/LocationUpdate';
 import { NotificationSettings } from '@/components/notifications/NotificationSettings';
 import { EnhancedNotificationSettings } from '@/components/notifications/EnhancedNotificationSettings';
 import { NudgeTestPanel } from '@/components/notifications/NudgeTestPanel';
@@ -21,7 +22,7 @@ import AppHeader from '@/components/layout/AppHeader';
 import { api } from '@/lib/api';
 import { getAuthToken, removeAuthToken } from '@/lib/auth';
 import { isProfileComplete, getMissingProfileFields } from '@/lib/utils/profile';
-import { UserProfile } from '@/types';
+import { UserProfile, Location } from '@/types';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
 
@@ -102,11 +103,15 @@ export default function ProfilePage() {
             birthDate: response.user.profile.birthDate || '',
             age: response.user.profile.age || 0,
             gender: response.user.profile.gender || '',
-            location: response.user.profile.location || {
-              latitude: 0,
-              longitude: 0,
-              address: ''
-            },
+          location: response.user.profile.location || {
+            latitude: 0,
+            longitude: 0,
+            address: '',
+            area: '',
+            city: '',
+            state: '',
+            isVisible: true
+          },
             profilePicture: response.user.profile.profilePicture
           });
         } else {
@@ -250,53 +255,22 @@ export default function ProfilePage() {
     }
   };
 
-  const handleUpdateLocation = async () => {
-    setError('');
-    setSuccess('');
-    setSaving(true);
-
+  const handleUpdateLocation = async (locationData: Location) => {
     const token = getAuthToken();
     if (!token) {
-    //  router.push('/login');
-      return;
+      throw new Error('Authentication token not found');
     }
 
-    // Get current location
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const response = await api.updateLocation(token, {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              address: `${position.coords.latitude}, ${position.coords.longitude}`
-            });
+    const response = await api.updateLocation(token, locationData);
 
-            if (response.success && response.user) {
-              // Only update location, preserve other fields
-              setProfile(prev => ({
-                ...prev,
-                location: response.user?.profile?.location || prev.location
-              }));
-              setSuccess('Location updated successfully!');
-              setTimeout(() => setSuccess(''), 3000);
-            } else {
-              setError(response.error || 'Failed to update location');
-            }
-          } catch (err) {
-            setError('Failed to update location');
-          } finally {
-            setSaving(false);
-          }
-        },
-        (error) => {
-          setError('Failed to get current location. Please enable location access.');
-          setSaving(false);
-        }
-      );
+    if (response.success && response.user) {
+      // Update local state with new location
+      setProfile(prev => ({
+        ...prev,
+        location: response.user?.profile?.location || prev.location
+      }));
     } else {
-      setError('Geolocation is not supported by your browser');
-      setSaving(false);
+      throw new Error(response.error || 'Failed to update location');
     }
   };
 
@@ -457,38 +431,11 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Location</CardTitle>
-            <CardDescription>
-              {profile.location.address || 'No location set'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {profile.location.latitude !== 0 && profile.location.longitude !== 0 && (
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600">
-                    <strong>Latitude:</strong> {profile.location.latitude.toFixed(6)}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    <strong>Longitude:</strong> {profile.location.longitude.toFixed(6)}
-                  </p>
-                </div>
-              )}
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={handleUpdateLocation}
-                disabled={saving}
-              >
-                {saving ? 'Updating...' : 'Update Current Location'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Location Update with Google Maps */}
+        <LocationUpdate 
+          location={profile.location}
+          onLocationUpdate={handleUpdateLocation}
+        />
 
         {/* Mobile Number Update */}
         <MobileNumberUpdate

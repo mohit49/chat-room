@@ -17,7 +17,11 @@ export class UserModelDB {
           location: data.profile.location || {
             latitude: 0,
             longitude: 0,
-            address: ''
+            address: '',
+            area: '',
+            city: '',
+            state: '',
+            isVisible: true
           },
           profilePicture: data.profile.profilePicture,
           theme: data.profile.theme || 'system'
@@ -92,7 +96,11 @@ export class UserModelDB {
       location: {
         latitude: profile.location?.latitude || 0,
         longitude: profile.location?.longitude || 0,
-        address: profile.location?.address || ''
+        address: profile.location?.address || '',
+        area: profile.location?.area || '',
+        city: profile.location?.city || '',
+        state: profile.location?.state || '',
+        isVisible: profile.location?.isVisible ?? true
       },
       profilePicture: profile.profilePicture ? {
         type: profile.profilePicture.type,

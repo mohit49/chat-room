@@ -15,11 +15,13 @@ import AppHeader from '@/components/layout/AppHeader';
 import CreateRoomModal from '@/components/room/CreateRoomModal';
 import EditRoomModal from '@/components/room/EditRoomModal';
 import ChatWidget from '@/components/chat/ChatWidget';
+import DirectMessageWidget from '@/components/chat/DirectMessageWidget';
 import { VoiceBroadcastProvider } from '@/lib/contexts/VoiceBroadcastContext';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import ProfileCompletionBanner from '@/components/profile/ProfileCompletionBanner';
 import ProfileCompletionGuard from '@/components/profile/ProfileCompletionGuard';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
+import OnlineUsersCarousel from '@/components/layout/OnlineUsersCarousel';
 import { api } from '@/lib/api';
 
 interface Room {
@@ -63,6 +65,8 @@ export default function HomePage() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatRoom, setChatRoom] = useState<Room | null>(null);
   const [activeBroadcasts, setActiveBroadcasts] = useState<Map<string, BroadcastState>>(new Map());
+  const [isDirectMessageOpen, setIsDirectMessageOpen] = useState(false);
+  const [directMessageUser, setDirectMessageUser] = useState<{ id: string; username: string; profilePicture?: any } | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -276,10 +280,14 @@ export default function HomePage() {
                     <span>Age: {user.profile.age} years</span>
                   </div>
                   
-                  {user.profile.location.address && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 md:col-span-2">
+                  {user.profile.location.isVisible !== false && (user.profile.location.city || user.profile.location.state) && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
                       <MapPin className="h-4 w-4" />
-                      <span>{user.profile.location.address}</span>
+                      <span>
+                        {user.profile.location.city && user.profile.location.state
+                          ? `${user.profile.location.city}, ${user.profile.location.state}`
+                          : user.profile.location.city || user.profile.location.state}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -287,6 +295,19 @@ export default function HomePage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Online Users Carousel */}
+        <OnlineUsersCarousel 
+          currentUserId={user.id}
+          onMessageUser={(userId, username) => {
+            setDirectMessageUser({
+              id: userId,
+              username: username,
+              profilePicture: undefined // Will be fetched when needed
+            });
+            setIsDirectMessageOpen(true);
+          }}
+        />
 
         {/* My Rooms Section */}
         <ProfileCompletionGuard 
@@ -571,6 +592,18 @@ export default function HomePage() {
               userRole={chatRoom ? getCurrentUserRole(chatRoom) : null}
             />
           </VoiceBroadcastProvider>
+        )}
+
+        {/* Direct Message Widget */}
+        {directMessageUser && (
+          <DirectMessageWidget
+            isOpen={isDirectMessageOpen}
+            onClose={() => {
+              setIsDirectMessageOpen(false);
+              setDirectMessageUser(null);
+            }}
+            targetUser={directMessageUser}
+          />
         )}
         </div>
       </div>

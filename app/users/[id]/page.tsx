@@ -25,6 +25,10 @@ interface UserProfile {
       latitude: number;
       longitude: number;
       address: string;
+      area?: string;
+      city?: string;
+      state?: string;
+      isVisible?: boolean;
     };
     profilePicture?: {
       type: 'upload' | 'avatar';
@@ -173,10 +177,16 @@ export default function UserProfilePage() {
                 <h3 className="font-semibold text-sm text-muted-foreground mb-1">Gender</h3>
                 <p className="text-lg">{user.profile.gender || 'Not specified'}</p>
               </div>
-              <div className="md:col-span-2">
-                <h3 className="font-semibold text-sm text-muted-foreground mb-1">Location</h3>
-                <p className="text-lg">{user.profile.location.address || 'Not specified'}</p>
-              </div>
+              {user.profile.location.isVisible !== false && (user.profile.location.city || user.profile.location.state) && (
+                <div className="md:col-span-2">
+                  <h3 className="font-semibold text-sm text-muted-foreground mb-1">Location</h3>
+                  <p className="text-lg">
+                    {user.profile.location.city && user.profile.location.state
+                      ? `${user.profile.location.city}, ${user.profile.location.state}`
+                      : user.profile.location.city || user.profile.location.state}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}
