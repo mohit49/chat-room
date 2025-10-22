@@ -137,6 +137,11 @@ class StorageModel {
     }
     
     // In-memory search
+    // If query is empty, return all users
+    if (!query || query.trim() === '') {
+      return Array.from(this.users.values());
+    }
+    
     const searchTerm = query.toLowerCase();
     return Array.from(this.users.values()).filter(user => 
       user.username?.toLowerCase().includes(searchTerm) ||

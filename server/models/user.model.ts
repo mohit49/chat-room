@@ -139,6 +139,12 @@ export class UserModelDB {
   }
 
   async searchUsers(query: string): Promise<User[]> {
+    // If query is empty, return all users (with limit)
+    if (!query || query.trim() === '') {
+      const users = await UserModel.find().sort({ username: 1 }).limit(50);
+      return users.map(user => this.documentToUser(user));
+    }
+    
     const searchTerm = query.toLowerCase();
     const users = await UserModel.find({
       $or: [

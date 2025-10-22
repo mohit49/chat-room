@@ -5,11 +5,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Users, MessageCircle } from 'lucide-react';
+import { MapPin, Users, MessageCircle, Clock } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { api } from '@/lib/api';
 import { User } from '@/types';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 interface OnlineUser {
   id: string;
@@ -39,12 +40,126 @@ interface OnlineUsersCarouselProps {
 
 export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: OnlineUsersCarouselProps) {
   const { socket } = useSocket();
+  const { user: currentUser } = useAuth();
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [displayedUsers, setDisplayedUsers] = useState<OnlineUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showingOfflineUsers, setShowingOfflineUsers] = useState(false);
+  const [offlineUsersFetched, setOfflineUsersFetched] = useState(false);
+
+  // Fetch offline users when no online users are available
+  const fetchOfflineUsers = async () => {
+    if (offlineUsersFetched) {
+      console.log('📱 Offline users already fetched, skipping...');
+      return;
+    }
+
+    try {
+      console.log('📱 Fetching offline users...');
+      setLoading(true);
+      
+      // Search for users (empty query returns all users)
+      const response = await api.searchUsers('') as any;
+      const allUsers = response?.users || [];
+      console.log(`📱 Found ${allUsers.length} total users`);
+      
+      // Filter out current user and online users
+      const offlineUsers = allUsers.filter((user: OnlineUser) => 
+        user.id !== currentUserId && 
+        !onlineUsers.some(ou => ou.id === user.id)
+      );
+      console.log(`📱 Filtered to ${offlineUsers.length} offline users`);
+
+      if (offlineUsers.length === 0) {
+        console.log('📱 No offline users available');
+        setDisplayedUsers([]);
+        setLoading(false);
+        setOfflineUsersFetched(true);
+        return;
+      }
+
+      // Get current user's location
+      const currentLocation = {
+        city: currentUser?.profile?.location?.city,
+        state: currentUser?.profile?.location?.state,
+      };
+      console.log('📍 Current user location:', currentLocation);
+
+      let usersToShow: OnlineUser[] = [];
+
+      // First try: Filter by same location (city and state match)
+      if (currentLocation.city && currentLocation.state) {
+        usersToShow = offlineUsers.filter((user: OnlineUser) => 
+          user.profile?.location?.isVisible !== false &&
+          user.profile?.location?.city === currentLocation.city &&
+          user.profile?.location?.state === currentLocation.state
+        );
+        console.log(`📍 Found ${usersToShow.length} users in same city/state`);
+      }
+
+      // Second try: If no users in same location, try same state
+      if (usersToShow.length === 0 && currentLocation.state) {
+        usersToShow = offlineUsers.filter((user: OnlineUser) => 
+          user.profile?.location?.isVisible !== false &&
+          user.profile?.location?.state === currentLocation.state
+        );
+        console.log(`📍 Found ${usersToShow.length} users in same state`);
+      }
+
+      // Final fallback: Show random offline users
+      if (usersToShow.length === 0) {
+        console.log('🎲 Showing random offline users');
+        // Shuffle and take random users (up to 10)
+        usersToShow = [...offlineUsers]
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 10);
+      } else {
+        // Limit to 10 users even if we found more
+        usersToShow = usersToShow.slice(0, 10);
+      }
+
+      // Mark them as offline
+      usersToShow = usersToShow.map((user: OnlineUser) => ({
+        ...user,
+        isOnline: false,
+      }));
+
+      console.log(`✅ Displaying ${usersToShow.length} users`);
+      setDisplayedUsers(usersToShow);
+      setShowingOfflineUsers(true);
+      setLoading(false);
+      setOfflineUsersFetched(true);
+    } catch (error) {
+      console.error('❌ Error fetching offline users:', error);
+      setDisplayedUsers([]);
+      setLoading(false);
+      setOfflineUsersFetched(true);
+    }
+  };
 
   useEffect(() => {
-    fetchOnlineUsers();
+    setLoading(false);
+    
+    // After 2 seconds, if still no online users, fetch offline users
+    const timer = setTimeout(() => {
+      if (onlineUsers.length === 0 && !offlineUsersFetched) {
+        fetchOfflineUsers();
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
   }, []);
+
+  // Update displayed users when online users change
+  useEffect(() => {
+    if (onlineUsers.length > 0) {
+      setDisplayedUsers(onlineUsers);
+      setShowingOfflineUsers(false);
+      setLoading(false);
+      // Reset offline users fetched flag when online users come back
+      setOfflineUsersFetched(false);
+    }
+  }, [onlineUsers]);
 
   // Listen for socket events for real-time online/offline updates
   useEffect(() => {
@@ -83,11 +198,6 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
     };
   }, [socket, currentUserId]);
 
-  const fetchOnlineUsers = async () => {
-    // Just set loading to false, we'll get users from socket events
-    setLoading(false);
-  };
-
   const getAvatarSrc = (profilePicture?: OnlineUser['profile']['profilePicture']) => {
     if (!profilePicture) return '';
     
@@ -119,7 +229,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
         <CardContent className="p-4">
           <div className="flex items-center gap-2 mb-3">
             <Users className="h-5 w-5 text-green-600" />
-            <h3 className="font-semibold text-lg">Online Users</h3>
+            <h3 className="font-semibold text-lg">Users</h3>
           </div>
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
@@ -130,38 +240,43 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
     );
   }
 
-  if (onlineUsers.length === 0) {
+  if (displayedUsers.length === 0) {
     return (
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Users className="h-5 w-5 text-green-600" />
-            <h3 className="font-semibold text-lg">Online Users</h3>
+            <Users className="h-5 w-5 text-gray-600" />
+            <h3 className="font-semibold text-lg">Users</h3>
           </div>
           <div className="text-center py-8">
             <Users className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">No users online right now</p>
+            <p className="text-sm text-muted-foreground">No users available</p>
           </div>
         </CardContent>
       </Card>
     );
   }
 
+  const titleText = showingOfflineUsers ? 'Suggested Users' : 'Online Users';
+  const titleIcon = showingOfflineUsers ? 'text-blue-600' : 'text-green-600';
+  const badgeColor = showingOfflineUsers ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
+
   return (
     <Card>
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-4">
-          <Users className="h-5 w-5 text-green-600" />
-          <h3 className="font-semibold text-lg">Online Users</h3>
-          <Badge variant="secondary" className="bg-green-100 text-green-800">
-            {onlineUsers.length}
+          <Users className={`h-5 w-5 ${titleIcon}`} />
+          <h3 className="font-semibold text-lg">{titleText}</h3>
+          <Badge variant="secondary" className={badgeColor}>
+            {displayedUsers.length}
           </Badge>
         </div>
         
         <ScrollArea className="w-full">
           <div className="flex gap-3 pb-2">
-            {onlineUsers.map((user) => {
+            {displayedUsers.map((user) => {
               const locationDisplay = getLocationDisplay(user.profile.location);
+              const isOnline = user.isOnline !== false;
               
               return (
                 <Card 
@@ -170,7 +285,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-col items-center text-center space-y-3">
-                      {/* Avatar with online indicator */}
+                      {/* Avatar with online/offline indicator */}
                       <div className="relative">
                         <Avatar className="h-16 w-16">
                           <AvatarImage
@@ -182,8 +297,12 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
                               : user.username?.charAt(0).toUpperCase() || user.mobileNumber?.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
-                        {/* Online indicator */}
-                        <div className="absolute -bottom-1 -right-1 h-4 w-4 bg-green-500 border-2 border-white rounded-full"></div>
+                        {/* Online/Offline indicator */}
+                        <div className={`absolute -bottom-1 -right-1 h-4 w-4 border-2 border-white rounded-full ${
+                          isOnline ? 'bg-green-500' : 'bg-gray-400'
+                        }`}>
+                          {!isOnline && <Clock className="h-3 w-3 text-white absolute top-0 left-0" />}
+                        </div>
                       </div>
                       
                       {/* Username */}
@@ -198,6 +317,13 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
                             <MapPin className="h-3 w-3" />
                             <span className="truncate">{locationDisplay}</span>
                           </div>
+                        )}
+
+                        {/* Offline badge */}
+                        {!isOnline && (
+                          <Badge variant="outline" className="text-xs">
+                            Offline
+                          </Badge>
                         )}
                       </div>
                       
@@ -218,7 +344,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
           </div>
         </ScrollArea>
         
-        {onlineUsers.length > 5 && (
+        {displayedUsers.length > 5 && (
           <div className="mt-3 text-center">
             <p className="text-xs text-muted-foreground">
               Scroll horizontally to see more users

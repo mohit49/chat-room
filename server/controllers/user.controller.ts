@@ -83,19 +83,20 @@ export class UserController {
       const { query } = req.query;
       const requesterId = req.userId!;
       
-      if (!query || typeof query !== 'string') {
-        return res.status(400).json({
-          success: false,
-          error: 'Search query is required'
-        });
-      }
+      // Allow empty query to return all users
+      const searchQuery = (query && typeof query === 'string') ? query : '';
 
-      const users = await userService.searchUsers(query);
+      const users = await userService.searchUsers(searchQuery);
 
-      // Filter out blocked users (both ways)
+      // Filter out blocked users (both ways) and requester
       const { blockService } = await import('../services/block.service');
       const filteredUsers = await Promise.all(
         users.map(async (user) => {
+          // Filter out the requester
+          if (user.id === requesterId) {
+            return null;
+          }
+
           const [isBlocked, isBlockedBy] = await Promise.all([
             blockService.isUserBlocked(requesterId, user.id),
             blockService.isUserBlocked(user.id, requesterId)
@@ -110,12 +111,15 @@ export class UserController {
             id: user.id,
             username: user.username,
             mobileNumber: user.mobileNumber,
-            profilePicture: user.profile.profilePicture,
+            profile: {
+              profilePicture: user.profile.profilePicture,
+              location: user.profile.location,
+            },
           };
         })
       );
 
-      // Remove null values (blocked users)
+      // Remove null values (blocked users and requester)
       const validUsers = filteredUsers.filter((user) => user !== null);
 
       return res.json({

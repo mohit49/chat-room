@@ -20,10 +20,12 @@
     "start:prod": "concurrently \"npm run server:prod\" \"npm run start\"",
     "start:domain": "cross-env NODE_ENV=production DOMAIN=flipychat.com USE_HTTPS=true NEXT_PUBLIC_API_URL=https://flipychat.com/api npm run start:prod",
     "lint": "next lint",
+    "type-check": "tsc --noEmit",
     "network-ip": "node scripts/get-network-ip.js",
     "setup:local": "node scripts/setup-env.js local",
     "setup:prod": "node scripts/setup-env.js prod",
-    "setup:domain": "node scripts/setup-env.js prod flipychat.com"
+    "setup:domain": "node scripts/setup-env.js prod flipychat.com",
+    "prepare": "husky"
   },
   "dependencies": {
     "@dicebear/collection": "^9.2.4",
@@ -50,6 +52,8 @@
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
+    "embla-carousel-autoplay": "^8.6.0",
+    "embla-carousel-react": "^8.6.0",
     "express": "^4.21.2",
     "express-validator": "^7.2.1",
     "joi": "^18.0.1",
@@ -84,8 +88,16 @@
     "cross-env": "^10.1.0",
     "eslint": "9.38.0",
     "eslint-config-next": "15.5.6",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.20.6",
     "typescript": "^5"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }

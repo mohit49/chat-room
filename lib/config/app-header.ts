@@ -8,6 +8,7 @@ export const APP_HEADER_CONFIGS = {
     showNavigation: true,
     showCreateRoom: true,
     showJoinRoom: true,
+    showBackButton: false,
     needsCreateRoomHandler: true,
   },
 

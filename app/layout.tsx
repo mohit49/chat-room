@@ -16,6 +16,7 @@ import GlobalNudgeListener from "@/components/layout/GlobalNudgeListener";
 import GlobalFollowListener from "@/components/layout/GlobalFollowListener";
 import { PWASocketManager } from "@/components/layout/PWASocketManager";
 import { PWAManager } from "@/components/pwa/PWAManager";
+import { DynamicThemeColor } from "@/components/pwa/DynamicThemeColor";
 import { ClientOnly } from "@/components/ui/ClientOnly";
 import { NoSSR } from "@/components/ui/NoSSR";
 import { Toaster } from "@/components/ui/toaster";
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
   title: "Chat App",
   description: "A modern chat application with user profiles",
   manifest: "/manifest.json",
-  themeColor: "#667eea",
+  themeColor: "#FDFEFF",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
   appleWebApp: {
     capable: true,
@@ -51,7 +52,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#667eea" />
+        <meta name="theme-color" content="#FDFEFF" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Chat App" />
@@ -77,6 +78,7 @@ export default function RootLayout({
             <GlobalAuthChecker>
               <SocketProvider>
                 <ThemeProvider>
+                  <DynamicThemeColor />
                   <SoundProvider>
                     <NotificationProvider>
                       <NudgeProvider>

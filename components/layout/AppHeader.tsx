@@ -28,6 +28,7 @@ interface AppHeaderProps {
   showNavigation?: boolean;
   showCreateRoom?: boolean;
   showJoinRoom?: boolean;
+  showBackButton?: boolean;
   onCreateRoom?: () => void;
 }
 
@@ -37,6 +38,7 @@ export default function AppHeader({
   showNavigation = true,
   showCreateRoom = true,
   showJoinRoom = true,
+  showBackButton = true,
   onCreateRoom
 }: AppHeaderProps) {
   const { user, logout } = useAuth();
@@ -109,15 +111,17 @@ export default function AppHeader({
       <div className="flex items-center justify-between w-full lg:justify-start gap-4">
         {/* Logo - Both Mobile and Desktop */}
         <div className="flex items-center gap-2">
-          {/* Back Icon - Mobile only */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.back()}
-            className="lg:hidden h-10 w-10 px-0 hover:bg-accent"
-          >
-            <ArrowLeft className="h-10 w-10" />
-          </Button>
+          {/* Back Icon - Mobile only (conditionally shown) */}
+          {showBackButton && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.back()}
+              className="lg:hidden h-10 w-10 px-0 hover:bg-accent"
+            >
+              <ArrowLeft className="h-10 w-10" />
+            </Button>
+          )}
           
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
             <span className="text-primary-foreground font-bold text-sm">C</span>

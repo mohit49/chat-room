@@ -25,6 +25,7 @@ import OnlineUsersCarousel from '@/components/layout/OnlineUsersCarousel';
 import { FollowListDialog } from '@/components/user/FollowListDialog';
 import { getFollowCounts } from '@/lib/api/follow';
 import { api } from '@/lib/api';
+import { BannerCarousel } from '@/components/home/BannerCarousel';
 
 interface Room {
   id: string;
@@ -255,13 +256,45 @@ export default function HomePage() {
         {/* Profile Summary Card */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <User className="h-5 w-5" />
-              Profile Summary
-            </CardTitle>
-            <CardDescription>
-              Your complete profile information
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-3">
+                  <User className="h-5 w-5" />
+                  Profile Summary
+                </CardTitle>
+                <CardDescription className="mt-1.5">
+                  Your complete profile information
+                </CardDescription>
+              </div>
+              
+              {/* Action Buttons - Top Right Corner */}
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  onClick={() => router.push('/profile')} 
+                  variant="outline"
+                  size="sm"
+                >
+                  <Edit3 className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Edit Profile</span>
+                </Button>
+                <Button 
+                  onClick={() => router.push('/profile')} 
+                  variant="outline"
+                  size="sm"
+                >
+                  <MapPin className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Update Location</span>
+                </Button>
+                <Button 
+                  onClick={() => router.push('/profile')} 
+                  variant="outline"
+                  size="sm"
+                >
+                  <Settings className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Settings</span>
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex items-start gap-6 mt-3">
@@ -288,8 +321,8 @@ export default function HomePage() {
                   <Badge variant="outline">{user.profile.gender}</Badge>
                 </div>
                 
-                {/* Followers/Following Display */}
-                <div className="flex items-center gap-2">
+                {/* Followers/Following Display - Hidden on mobile, shown inline on desktop */}
+                <div className="hidden sm:flex items-center gap-2">
                   <FollowListDialog
                     userId={user.id}
                     followerCount={followCounts.followers}
@@ -316,8 +349,24 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+
+            {/* Followers/Following Display - Bottom on mobile only */}
+            <div className="sm:hidden mt-4 pt-4 border-t flex justify-center">
+              <FollowListDialog
+                userId={user.id}
+                followerCount={followCounts.followers}
+                followingCount={followCounts.following}
+              />
+            </div>
           </CardContent>
         </Card>
+
+        {/* Banner Carousel */}
+        <BannerCarousel 
+          onCreateRoom={() => setShowCreateModal(true)}
+          onExploreRooms={() => router.push('/rooms')}
+          onViewNotifications={() => router.push('/notifications')}
+        />
 
         {/* Online Users Carousel */}
         <OnlineUsersCarousel 
@@ -510,63 +559,6 @@ export default function HomePage() {
           </CardContent>
         </Card>
         </ProfileCompletionGuard>
-
-        {/* Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader>
-              <CardTitle className="text-lg">Edit Profile</CardTitle>
-              <CardDescription>
-                Update your personal information
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => router.push('/profile')} 
-                className="w-full"
-                variant="outline"
-              >
-                Go to Profile
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader>
-              <CardTitle className="text-lg">Update Location</CardTitle>
-              <CardDescription>
-                Share your current location
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => router.push('/profile')} 
-                className="w-full"
-                variant="outline"
-              >
-                Update Location
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader>
-              <CardTitle className="text-lg">Settings</CardTitle>
-              <CardDescription>
-                Manage your account settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => router.push('/profile')} 
-                className="w-full"
-                variant="outline"
-              >
-                Settings
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Welcome Message */}
         <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
