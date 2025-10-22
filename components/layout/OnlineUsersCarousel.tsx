@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MapPin, Users, MessageCircle, Clock } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { api } from '@/lib/api';
 import { User, OnlineStatus } from '@/types';
@@ -319,8 +319,8 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
             </Badge>
           </div>
           
-          <ScrollArea className="w-full whitespace-nowrap" orientation="horizontal">
-            <div className="flex gap-3 pb-2 px-4">
+          <ScrollArea className="w-full">
+            <div className="flex gap-3 pb-2 px-4 whitespace-nowrap">
               {displayedUsers.map((user) => {
                 const locationDisplay = getLocationDisplay(user.profile.location);
                 const statusDisplay = getStatusDisplay(user);
@@ -385,6 +385,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
                 );
               })}
             </div>
+            <ScrollBar orientation="horizontal" />
           </ScrollArea>
           
           {displayedUsers.length > 5 && (
