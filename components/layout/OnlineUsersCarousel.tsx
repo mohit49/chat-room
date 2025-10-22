@@ -267,7 +267,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
 
   if (loading) {
     return (
-      <div className="w-full -mx-4 px-4">
+      <div className="w-full">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -286,7 +286,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
 
   if (displayedUsers.length === 0) {
     return (
-      <div className="w-full -mx-4 px-4">
+      <div className="w-full">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -308,7 +308,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
   const badgeColor = showingOfflineUsers ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
 
   return (
-    <div className="w-full -mx-4 px-4">
+    <div className="w-full">
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center gap-2 mb-4">
@@ -319,8 +319,8 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
             </Badge>
           </div>
           
-          <ScrollArea className="w-full">
-            <div className="flex gap-3 pb-2">
+          <ScrollArea className="w-full whitespace-nowrap" orientation="horizontal">
+            <div className="flex gap-3 pb-2 px-4">
               {displayedUsers.map((user) => {
                 const locationDisplay = getLocationDisplay(user.profile.location);
                 const statusDisplay = getStatusDisplay(user);

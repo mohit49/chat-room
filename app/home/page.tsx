@@ -369,17 +369,19 @@ export default function HomePage() {
         />
 
         {/* Online Users Carousel */}
-        <OnlineUsersCarousel 
-          currentUserId={user.id}
-          onMessageUser={(userId, username) => {
-            setDirectMessageUser({
-              id: userId,
-              username: username,
-              profilePicture: undefined // Will be fetched when needed
-            });
-            setIsDirectMessageOpen(true);
-          }}
-        />
+        <div className="px-4">
+          <OnlineUsersCarousel 
+            currentUserId={user.id}
+            onMessageUser={(userId, username) => {
+              setDirectMessageUser({
+                id: userId,
+                username: username,
+                profilePicture: undefined // Will be fetched when needed
+              });
+              setIsDirectMessageOpen(true);
+            }}
+          />
+        </div>
 
         {/* My Rooms Section */}
         <ProfileCompletionGuard 
