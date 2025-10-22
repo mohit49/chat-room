@@ -37,14 +37,17 @@ export default function UserActionButtons({
   });
   const [loadingBlockStatus, setLoadingBlockStatus] = useState(true);
 
+  // Fetch block status when component mounts
+  useEffect(() => {
+    if (user && user.id !== targetUserId) {
+      fetchBlockStatus();
+    }
+  }, [targetUserId, user]);
+
   // Don't show buttons for own profile
   if (!user || user.id === targetUserId) {
     return null;
   }
-
-  useEffect(() => {
-    fetchBlockStatus();
-  }, [targetUserId]);
 
   const fetchBlockStatus = async () => {
     try {
