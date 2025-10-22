@@ -10,10 +10,14 @@ router.use(authenticateToken);
 // Follow routes
 router.post('/:userId', followController.sendFollowRequest);
 router.delete('/:userId', followController.unfollowUser);
+router.delete('/follower/:followerId', followController.removeFollower);
 router.delete('/request/:userId', followController.cancelFollowRequest);
 router.post('/request/:requestId/accept', followController.acceptFollowRequest);
 router.post('/request/:requestId/reject', followController.rejectFollowRequest);
 router.get('/requests', followController.getFollowRequests);
 router.get('/status/:userId', followController.getFollowStatus);
+router.get('/followers/:userId', followController.getFollowers);
+router.get('/following/:userId', followController.getFollowing);
+router.get('/counts/:userId', followController.getFollowCounts);
 
 export default router;

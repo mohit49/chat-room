@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { X, Send, Loader2, MessageCircle, Image as ImageIcon, Volume2, VolumeX, Trash2, MoreVertical, Play, Pause, Mic } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { X, Send, Loader2, MessageCircle, Image as ImageIcon, Volume2, VolumeX, Trash2, MoreVertical, Play, Pause, Mic, ShieldAlert } from 'lucide-react';
 import AudioRecorder from './AudioRecorder';
 import ImageLightbox from './ImageLightbox';
 import { ImageCompressor } from '@/lib/utils/imageCompression';
@@ -16,6 +17,7 @@ import { useSocket } from '@/lib/contexts/SocketContext';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { useSound } from '@/lib/contexts/SoundContext';
 import { api } from '@/lib/api';
+import { checkBlockStatus } from '@/lib/api/block';
 
 interface DirectMessageWidgetProps {
   isOpen: boolean;
@@ -145,6 +147,8 @@ export default function DirectMessageWidget({
   const [showImageLightbox, setShowImageLightbox] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [showBlockedDialog, setShowBlockedDialog] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -155,6 +159,7 @@ export default function DirectMessageWidget({
     if (isOpen && user) {
       fetchMessages();
       markMessagesAsSeen();
+      checkIfBlocked();
       
       // Notify server that chat is open (to prevent push notifications)
       if (socket) {
@@ -171,6 +176,17 @@ export default function DirectMessageWidget({
       }
     };
   }, [isOpen, user, targetUser.id, socket]);
+
+  // Check if user is blocked
+  const checkIfBlocked = async () => {
+    try {
+      const blockStatus = await checkBlockStatus(targetUser.id);
+      setIsBlocked(blockStatus.isBlocked || blockStatus.isBlockedBy);
+    } catch (error) {
+      console.error('Error checking block status:', error);
+      setIsBlocked(false);
+    }
+  };
 
   // Mark messages as seen when chat opens
   const markMessagesAsSeen = async () => {
@@ -227,6 +243,12 @@ export default function DirectMessageWidget({
 
   const handleSendMessage = async () => {
     if ((!newMessage.trim() && !audioFile && !imageFile) || sending || !user) return;
+
+    // Check if user is blocked before sending
+    if (isBlocked) {
+      setShowBlockedDialog(true);
+      return;
+    }
 
     // Stop typing indicator when sending
     socketEvents.emit('direct_message_typing', {
@@ -308,8 +330,14 @@ export default function DirectMessageWidget({
         setImageFile(null);
         setImagePreview(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send direct message:', error);
+      
+      // Check if it's a block-related error
+      if (error.response?.status === 403 || error.message?.includes('cannot send messages')) {
+        setIsBlocked(true);
+        setShowBlockedDialog(true);
+      }
     } finally {
       setSending(false);
     }
@@ -847,6 +875,35 @@ export default function DirectMessageWidget({
         images={getImageMessages()}
         currentImageIndex={currentImageIndex}
       />
+
+      {/* Blocked User Dialog */}
+      <AlertDialog open={showBlockedDialog} onOpenChange={setShowBlockedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-3 bg-destructive/10 rounded-full">
+                <ShieldAlert className="h-6 w-6 text-destructive" />
+              </div>
+              <AlertDialogTitle className="text-xl">Cannot Send Message</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-base pt-2">
+              You can no longer send messages to <strong>@{targetUser.username}</strong>. This may be because:
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>You have blocked this user</li>
+                <li>This user has blocked you</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => {
+              setShowBlockedDialog(false);
+              onClose(); // Close the chat widget
+            }}>
+              Close Chat
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

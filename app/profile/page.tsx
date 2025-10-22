@@ -24,6 +24,8 @@ import { getAuthToken, removeAuthToken } from '@/lib/auth';
 import { isProfileComplete, getMissingProfileFields } from '@/lib/utils/profile';
 import { UserProfile, Location } from '@/types';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { FollowListDialog } from '@/components/user/FollowListDialog';
+import { getFollowCounts } from '@/lib/api/follow';
 
 
 // Calculate age from birth date
@@ -67,6 +69,7 @@ export default function ProfilePage() {
   const [username, setUsername] = useState('');
   const [originalUsername, setOriginalUsername] = useState(''); // Track original username
   const [isUsernameValid, setIsUsernameValid] = useState(true);
+  const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
   const [profile, setProfile] = useState<UserProfile>({
     birthDate: '',
     age: 0,
@@ -114,6 +117,16 @@ export default function ProfilePage() {
           },
             profilePicture: response.user.profile.profilePicture
           });
+
+          // Fetch follow counts
+          if (response.user.id) {
+            try {
+              const counts = await getFollowCounts(response.user.id);
+              setFollowCounts(counts);
+            } catch (err) {
+              console.error('Error fetching follow counts:', err);
+            }
+          }
         } else {
           // If profile fetch fails, likely auth issue
           removeAuthToken();
@@ -335,6 +348,15 @@ export default function ProfilePage() {
           <CardHeader>
             <CardTitle>Personal Information</CardTitle>
             <CardDescription>Mobile: {mobileNumber}</CardDescription>
+            {user?.id && (
+              <div className="mt-3">
+                <FollowListDialog
+                  userId={user.id}
+                  followerCount={followCounts.followers}
+                  followingCount={followCounts.following}
+                />
+              </div>
+            )}
             {!isComplete && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2">
                 <div className="flex items-center gap-2">

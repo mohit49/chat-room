@@ -76,5 +76,28 @@ export const blockController = {
     } catch (error: any) {
       next(error);
     }
+  },
+
+  // Check block status (both ways)
+  checkBlockStatus: async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params;
+      const checkerId = req.userId!;
+
+      const [isBlocked, isBlockedBy] = await Promise.all([
+        blockService.isUserBlocked(checkerId, userId),
+        blockService.isUserBlocked(userId, checkerId)
+      ]);
+      
+      res.json({
+        success: true,
+        blockStatus: {
+          isBlocked,
+          isBlockedBy
+        }
+      });
+    } catch (error: any) {
+      next(error);
+    }
   }
 };

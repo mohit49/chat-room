@@ -46,6 +46,25 @@ export const followController = {
     }
   },
 
+  // Remove follower (break someone else's follow to you)
+  removeFollower: async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { followerId } = req.params;
+      const userId = req.userId!;
+
+      // Remove the follow relationship where followerId is following userId
+      const result = await followService.unfollowUser(followerId, userId);
+      
+      res.json({
+        success: true,
+        message: 'Follower removed successfully',
+        data: result
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  },
+
   // Cancel follow request
   cancelFollowRequest: async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
@@ -126,6 +145,51 @@ export const followController = {
       res.json({
         success: true,
         status
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  },
+
+  // Get followers list
+  getFollowers: async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params;
+      const followers = await followService.getFollowers(userId);
+      
+      res.json({
+        success: true,
+        followers
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  },
+
+  // Get following list
+  getFollowing: async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params;
+      const following = await followService.getFollowing(userId);
+      
+      res.json({
+        success: true,
+        following
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  },
+
+  // Get follow counts
+  getFollowCounts: async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params;
+      const counts = await followService.getFollowCounts(userId);
+      
+      res.json({
+        success: true,
+        counts
       });
     } catch (error: any) {
       next(error);

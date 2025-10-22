@@ -22,6 +22,8 @@ import ProfileCompletionBanner from '@/components/profile/ProfileCompletionBanne
 import ProfileCompletionGuard from '@/components/profile/ProfileCompletionGuard';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import OnlineUsersCarousel from '@/components/layout/OnlineUsersCarousel';
+import { FollowListDialog } from '@/components/user/FollowListDialog';
+import { getFollowCounts } from '@/lib/api/follow';
 import { api } from '@/lib/api';
 
 interface Room {
@@ -67,12 +69,24 @@ export default function HomePage() {
   const [activeBroadcasts, setActiveBroadcasts] = useState<Map<string, BroadcastState>>(new Map());
   const [isDirectMessageOpen, setIsDirectMessageOpen] = useState(false);
   const [directMessageUser, setDirectMessageUser] = useState<{ id: string; username: string; profilePicture?: any } | null>(null);
+  const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
 
   useEffect(() => {
     if (user) {
       fetchRooms();
+      fetchFollowCounts();
     }
   }, [user]);
+
+  const fetchFollowCounts = async () => {
+    if (!user?.id) return;
+    try {
+      const counts = await getFollowCounts(user.id);
+      setFollowCounts(counts);
+    } catch (error) {
+      console.error('Error fetching follow counts:', error);
+    }
+  };
 
   // Listen for broadcast events
   useEffect(() => {
@@ -272,6 +286,15 @@ export default function HomePage() {
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">@{user.username}</Badge>
                   <Badge variant="outline">{user.profile.gender}</Badge>
+                </div>
+                
+                {/* Followers/Following Display */}
+                <div className="flex items-center gap-2">
+                  <FollowListDialog
+                    userId={user.id}
+                    followerCount={followCounts.followers}
+                    followingCount={followCounts.following}
+                  />
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

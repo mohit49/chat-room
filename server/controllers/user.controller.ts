@@ -81,6 +81,7 @@ export class UserController {
   searchUsers = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const { query } = req.query;
+      const requesterId = req.userId!;
       
       if (!query || typeof query !== 'string') {
         return res.status(400).json({
@@ -91,14 +92,35 @@ export class UserController {
 
       const users = await userService.searchUsers(query);
 
+      // Filter out blocked users (both ways)
+      const { blockService } = await import('../services/block.service');
+      const filteredUsers = await Promise.all(
+        users.map(async (user) => {
+          const [isBlocked, isBlockedBy] = await Promise.all([
+            blockService.isUserBlocked(requesterId, user.id),
+            blockService.isUserBlocked(user.id, requesterId)
+          ]);
+          
+          // Return null if blocked (either way)
+          if (isBlocked || isBlockedBy) {
+            return null;
+          }
+          
+          return {
+            id: user.id,
+            username: user.username,
+            mobileNumber: user.mobileNumber,
+            profilePicture: user.profile.profilePicture,
+          };
+        })
+      );
+
+      // Remove null values (blocked users)
+      const validUsers = filteredUsers.filter((user) => user !== null);
+
       return res.json({
         success: true,
-        users: users.map(user => ({
-          id: user.id,
-          username: user.username,
-          mobileNumber: user.mobileNumber,
-          profilePicture: user.profile.profilePicture,
-        })),
+        users: validUsers,
       });
     } catch (error) {
       next(error);
@@ -108,14 +130,30 @@ export class UserController {
   getUserById = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
+      const requesterId = req.userId!; // The user making the request
       
       console.log('🔍 getUserById - req.params:', req.params);
       console.log('🔍 getUserById - id type:', typeof id, 'value:', id);
+      console.log('🔍 getUserById - requesterId:', requesterId);
       
       if (!id) {
         return res.status(400).json({
           success: false,
           error: 'User ID is required'
+        });
+      }
+
+      // Check if there's a block relationship (both ways)
+      const { blockService } = await import('../services/block.service');
+      const [isBlocked, isBlockedBy] = await Promise.all([
+        blockService.isUserBlocked(requesterId, id),
+        blockService.isUserBlocked(id, requesterId)
+      ]);
+
+      if (isBlocked || isBlockedBy) {
+        return res.status(403).json({
+          success: false,
+          error: 'This profile is not available'
         });
       }
 

@@ -12,6 +12,8 @@ import { APP_HEADER_CONFIGS } from '@/lib/config/app-header';
 import { api } from '@/lib/api';
 import UserActionButtons from '@/components/user/UserActionButtons';
 import DirectMessageWidget from '@/components/chat/DirectMessageWidget';
+import { FollowListDialog } from '@/components/user/FollowListDialog';
+import { getFollowCounts } from '@/lib/api/follow';
 
 interface UserProfile {
   id: string;
@@ -48,6 +50,7 @@ export default function UserProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDirectMessageOpen, setIsDirectMessageOpen] = useState(false);
+  const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
 
   const userId = params.id as string;
 
@@ -59,6 +62,14 @@ export default function UserProfilePage() {
         
         if (response.success && response.user) {
           setUser(response.user as unknown as UserProfile);
+          
+          // Fetch follow counts
+          try {
+            const counts = await getFollowCounts(userId);
+            setFollowCounts(counts);
+          } catch (err) {
+            console.error('Error fetching follow counts:', err);
+          }
         } else {
           setError(response.error || 'Failed to load user profile');
         }
@@ -162,6 +173,14 @@ export default function UserProfilePage() {
                 <CardTitle className="text-2xl">@{user.username}</CardTitle>
                 <div className="flex gap-2 mt-2">
                   <Badge variant="outline">Member since {new Date(user.createdAt).getFullYear()}</Badge>
+                </div>
+                {/* Follow Counts */}
+                <div className="mt-3">
+                  <FollowListDialog
+                    userId={user.id}
+                    followerCount={followCounts.followers}
+                    followingCount={followCounts.following}
+                  />
                 </div>
               </div>
             </div>

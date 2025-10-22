@@ -37,6 +37,27 @@ class BlockServiceImpl {
       throw new ConflictError('User is already blocked');
     }
 
+    // Remove any follow relationships (both ways)
+    try {
+      // Import follow models
+      const { FollowRelationshipModel } = await import('../database/schemas/follow.schema');
+      
+      // Remove follow relationships in both directions
+      await Promise.all([
+        FollowRelationshipModel.deleteMany({
+          $or: [
+            { followerId: blockerId, followingId: blockedUserId },
+            { followerId: blockedUserId, followingId: blockerId }
+          ]
+        })
+      ]);
+      
+      console.log(`🚫 Removed follow relationships between ${blockerId} and ${blockedUserId}`);
+    } catch (error) {
+      console.error('Error removing follow relationships:', error);
+      // Continue with block even if follow removal fails
+    }
+
     // Block the user
     const result = await storage.blockUser(blockerId, blockedUserId);
     return result;

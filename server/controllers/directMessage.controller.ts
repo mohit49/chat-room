@@ -27,6 +27,20 @@ export const directMessageController = {
         });
       }
 
+      // Check if there's a block relationship (both ways)
+      const { blockService } = await import('../services/block.service');
+      const [isBlocked, isBlockedBy] = await Promise.all([
+        blockService.isUserBlocked(senderId, receiverId),
+        blockService.isUserBlocked(receiverId, senderId)
+      ]);
+
+      if (isBlocked || isBlockedBy) {
+        return res.status(403).json({
+          success: false,
+          error: 'You cannot send messages to this user'
+        });
+      }
+
       const result = await directMessageService.sendDirectMessage(senderId, receiverId, message, messageType, imageUrl, audioUrl);
       
       // Check if receiver has push notifications enabled AND chat is NOT open

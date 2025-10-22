@@ -247,6 +247,39 @@ class StorageModel {
     };
   }
 
+  async getFollowers(userId: string): Promise<any[]> {
+    if (this.useDB()) {
+      const { followModelDB } = await import('./follow.model');
+      return await followModelDB.getFollowers(userId);
+    }
+    
+    // In-memory fallback
+    console.log('Getting followers for user (in-memory):', userId);
+    return [];
+  }
+
+  async getFollowing(userId: string): Promise<any[]> {
+    if (this.useDB()) {
+      const { followModelDB } = await import('./follow.model');
+      return await followModelDB.getFollowing(userId);
+    }
+    
+    // In-memory fallback
+    console.log('Getting following for user (in-memory):', userId);
+    return [];
+  }
+
+  async getFollowCounts(userId: string): Promise<{ followers: number; following: number }> {
+    if (this.useDB()) {
+      const { followModelDB } = await import('./follow.model');
+      return await followModelDB.getFollowCounts(userId);
+    }
+    
+    // In-memory fallback
+    console.log('Getting follow counts for user (in-memory):', userId);
+    return { followers: 0, following: 0 };
+  }
+
   // Block system methods
   async blockUser(blockerId: string, blockedUserId: string): Promise<boolean> {
     if (this.useDB()) {

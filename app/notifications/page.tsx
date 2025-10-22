@@ -11,7 +11,18 @@ import { APP_HEADER_CONFIGS } from '@/lib/config/app-header';
 import AppHeader from '@/components/layout/AppHeader';
 import { api } from '@/lib/api';
 import { Notification } from '@/lib/api/notification';
-import { Check, X, Trash2, Bell, CheckCheck } from 'lucide-react';
+import { Check, X, Trash2, Bell, CheckCheck, Trash } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export default function NotificationsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -20,6 +31,8 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -118,6 +131,19 @@ export default function NotificationsPage() {
       setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
     } catch (error) {
       console.error('Error deleting notification:', error);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    try {
+      setDeletingAll(true);
+      await api.clearAllNotifications();
+      setNotifications([]);
+      setShowDeleteAllDialog(false);
+    } catch (error) {
+      console.error('Error deleting all notifications:', error);
+    } finally {
+      setDeletingAll(false);
     }
   };
 

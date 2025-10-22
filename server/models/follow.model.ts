@@ -149,13 +149,13 @@ class FollowModelDB {
 
   async getFollowers(userId: string): Promise<IFollowRelationship[]> {
     return await FollowRelationshipModel.find({ followingId: userId })
-      .populate('followerId', 'username profilePicture')
+      .populate('followerId', 'username mobileNumber profile')
       .sort({ createdAt: -1 });
   }
 
   async getFollowing(userId: string): Promise<IFollowRelationship[]> {
     return await FollowRelationshipModel.find({ followerId: userId })
-      .populate('followingId', 'username profilePicture')
+      .populate('followingId', 'username mobileNumber profile')
       .sort({ createdAt: -1 });
   }
 

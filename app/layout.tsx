@@ -13,10 +13,12 @@ import GlobalChatManager from "@/components/layout/GlobalChatManager";
 import GlobalSocketConnection from "@/components/layout/GlobalSocketConnection";
 import GlobalNudgeNotification from "@/components/layout/GlobalNudgeNotification";
 import GlobalNudgeListener from "@/components/layout/GlobalNudgeListener";
+import GlobalFollowListener from "@/components/layout/GlobalFollowListener";
 import { PWASocketManager } from "@/components/layout/PWASocketManager";
 import { PWAManager } from "@/components/pwa/PWAManager";
 import { ClientOnly } from "@/components/ui/ClientOnly";
 import { NoSSR } from "@/components/ui/NoSSR";
+import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
   title: "Chat App",
@@ -84,9 +86,11 @@ export default function RootLayout({
                               <GlobalSocketConnection />
                               <PWASocketManager />
                               <GlobalNudgeListener />
+                              <GlobalFollowListener />
                               {children}
                               <GlobalChatManager />
                               <GlobalNudgeNotification />
+                              <Toaster />
                             </PWAManager>
                           </EnhancedNudgeProvider>
                         </PushNotificationProvider>

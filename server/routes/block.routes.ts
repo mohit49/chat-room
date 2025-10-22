@@ -12,5 +12,6 @@ router.post('/:userId', blockController.blockUser);
 router.delete('/:userId', blockController.unblockUser);
 router.get('/', blockController.getBlockedUsers);
 router.get('/check/:userId', blockController.isUserBlocked);
+router.get('/status/:userId', blockController.checkBlockStatus);
 
 export default router;

@@ -2,7 +2,7 @@ import { apiClient } from './client';
 
 export interface Notification {
   id: string;
-  type: 'room_invitation' | 'room_approved' | 'room_rejected' | 'room_removed' | 'role_changed';
+  type: 'room_invitation' | 'room_approved' | 'room_rejected' | 'room_removed' | 'role_changed' | 'follow_request' | 'follow_accepted';
   title: string;
   message: string;
   recipientId: string;
@@ -13,6 +13,9 @@ export interface Notification {
   metadata?: {
     invitationId?: string;
     newRole?: string;
+    followRequestId?: string;
+    senderUsername?: string;
+    senderProfilePicture?: any;
     [key: string]: any;
   };
   createdAt: string;
