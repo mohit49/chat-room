@@ -1,5 +1,5 @@
 import { storage } from '../models/storage.model';
-import { User, UserProfile } from '../../types';
+import { User, UserProfile, OnlineStatus } from '../../types';
 import { NotFoundError } from '../utils/errors';
 
 export class UserService {
@@ -76,6 +76,26 @@ export class UserService {
   async getUserById(userId: string): Promise<User | null> {
     const user = await storage.getUserById(userId);
     return user || null;
+  }
+
+  async updateUserStatus(userId: string, status: OnlineStatus, lastSeen?: Date): Promise<User> {
+    const user = await this.getUser(userId);
+    
+    // Update lastSeen if provided, otherwise keep current value
+    const updateData: Partial<User> = {
+      onlineStatus: status,
+      ...(lastSeen && { lastSeen })
+    };
+
+    return await storage.updateUserStatus(userId, updateData);
+  }
+
+  async updateLastSeen(userId: string): Promise<User> {
+    return await this.updateUserStatus(userId, 'online', new Date());
+  }
+
+  async getUsersWithStatus(): Promise<User[]> {
+    return await storage.getUsersWithStatus();
   }
 }
 

@@ -9,7 +9,7 @@ import { MapPin, Users, MessageCircle, Clock } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { api } from '@/lib/api';
-import { User } from '@/types';
+import { User, OnlineStatus } from '@/types';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
 interface OnlineUser {
@@ -29,8 +29,8 @@ interface OnlineUser {
       isVisible?: boolean;
     };
   };
-  lastSeen?: string;
-  isOnline: boolean;
+  lastSeen?: Date;
+  onlineStatus?: OnlineStatus;
 }
 
 interface OnlineUsersCarouselProps {
@@ -39,7 +39,7 @@ interface OnlineUsersCarouselProps {
 }
 
 export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: OnlineUsersCarouselProps) {
-  const { socket } = useSocket();
+  const { socket, getUserStatus } = useSocket();
   const { user: currentUser } = useAuth();
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [displayedUsers, setDisplayedUsers] = useState<OnlineUser[]>([]);
@@ -161,7 +161,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
     }
   }, [onlineUsers]);
 
-  // Listen for socket events for real-time online/offline updates
+  // Listen for socket events for real-time status updates
   useEffect(() => {
     if (!socket) return;
 
@@ -169,14 +169,38 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
       console.log('👤 User came online:', data);
       setOnlineUsers(prev => {
         const exists = prev.find(user => user.id === data.userId);
-        if (exists) return prev;
-        return [...prev, data.user];
+        if (exists) {
+          // Update existing user status
+          return prev.map(user => 
+            user.id === data.userId 
+              ? { ...user, onlineStatus: 'online', lastSeen: new Date() }
+              : user
+          );
+        }
+        return [...prev, { ...data.user, onlineStatus: 'online', lastSeen: new Date() }];
       });
     };
 
-    const handleUserOffline = (data: { userId: string }) => {
+    const handleUserAway = (data: { userId: string }) => {
+      console.log('👤 User went away:', data);
+      setOnlineUsers(prev => 
+        prev.map(user => 
+          user.id === data.userId 
+            ? { ...user, onlineStatus: 'away' }
+            : user
+        )
+      );
+    };
+
+    const handleUserOffline = (data: { userId: string; lastSeen?: Date }) => {
       console.log('👤 User went offline:', data);
-      setOnlineUsers(prev => prev.filter(user => user.id !== data.userId));
+      setOnlineUsers(prev => 
+        prev.map(user => 
+          user.id === data.userId 
+            ? { ...user, onlineStatus: 'offline', lastSeen: data.lastSeen || new Date() }
+            : user
+        )
+      );
     };
 
     const handleOnlineUsers = (data: { users: OnlineUser[] }) => {
@@ -185,6 +209,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
     };
 
     socket.on('user_online', handleUserOnline);
+    socket.on('user_away', handleUserAway);
     socket.on('user_offline', handleUserOffline);
     socket.on('online_users', handleOnlineUsers);
 
@@ -193,6 +218,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
 
     return () => {
       socket.off('user_online', handleUserOnline);
+      socket.off('user_away', handleUserAway);
       socket.off('user_offline', handleUserOffline);
       socket.off('online_users', handleOnlineUsers);
     };
@@ -223,135 +249,153 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
     return location.city || location.state || null;
   };
 
+  const getStatusDisplay = (user: OnlineUser) => {
+    const status = user.onlineStatus || 'offline';
+    const lastSeen = user.lastSeen;
+    
+    switch (status) {
+      case 'online':
+        return { color: 'bg-green-500', icon: null };
+      case 'away':
+        return { color: 'bg-yellow-500', icon: null };
+      case 'offline':
+        return { color: 'bg-gray-400', icon: <Clock className="h-3 w-3 text-white absolute top-0 left-0" /> };
+      default:
+        return { color: 'bg-gray-400', icon: null };
+    }
+  };
+
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="h-5 w-5 text-green-600" />
-            <h3 className="font-semibold text-lg">Users</h3>
-          </div>
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-            <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="w-full -mx-4 px-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="h-5 w-5 text-green-600" />
+              <h3 className="font-semibold text-lg">Users</h3>
+            </div>
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   if (displayedUsers.length === 0) {
     return (
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="h-5 w-5 text-gray-600" />
-            <h3 className="font-semibold text-lg">Users</h3>
-          </div>
-          <div className="text-center py-8">
-            <Users className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">No users available</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="w-full -mx-4 px-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="h-5 w-5 text-gray-600" />
+              <h3 className="font-semibold text-lg">Users</h3>
+            </div>
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No users available</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
-  const titleText = showingOfflineUsers ? 'Suggested Users' : 'Online Users';
+  const titleText = showingOfflineUsers ? 'Suggested Users' : 'Users';
   const titleIcon = showingOfflineUsers ? 'text-blue-600' : 'text-green-600';
   const badgeColor = showingOfflineUsers ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
 
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Users className={`h-5 w-5 ${titleIcon}`} />
-          <h3 className="font-semibold text-lg">{titleText}</h3>
-          <Badge variant="secondary" className={badgeColor}>
-            {displayedUsers.length}
-          </Badge>
-        </div>
-        
-        <ScrollArea className="w-full">
-          <div className="flex gap-3 pb-2">
-            {displayedUsers.map((user) => {
-              const locationDisplay = getLocationDisplay(user.profile.location);
-              const isOnline = user.isOnline !== false;
-              
-              return (
-                <Card 
-                  key={user.id} 
-                  className="flex-shrink-0 w-[200px] hover:shadow-md transition-shadow cursor-pointer group"
-                >
-                  <CardContent className="p-4">
-                    <div className="flex flex-col items-center text-center space-y-3">
-                      {/* Avatar with online/offline indicator */}
-                      <div className="relative">
-                        <Avatar className="h-16 w-16">
-                          <AvatarImage
-                            src={getAvatarSrc(user.profile.profilePicture)}
-                          />
-                          <AvatarFallback className="text-lg bg-primary text-primary-foreground">
-                            {user.profile.profilePicture?.type === 'avatar'
-                              ? '🎭'
-                              : user.username?.charAt(0).toUpperCase() || user.mobileNumber?.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        {/* Online/Offline indicator */}
-                        <div className={`absolute -bottom-1 -right-1 h-4 w-4 border-2 border-white rounded-full ${
-                          isOnline ? 'bg-green-500' : 'bg-gray-400'
-                        }`}>
-                          {!isOnline && <Clock className="h-3 w-3 text-white absolute top-0 left-0" />}
-                        </div>
-                      </div>
-                      
-                      {/* Username */}
-                      <div className="space-y-1">
-                        <h4 className="font-medium text-sm truncate w-full">
-                          @{user.username}
-                        </h4>
-                        
-                        {/* Location */}
-                        {locationDisplay && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <MapPin className="h-3 w-3" />
-                            <span className="truncate">{locationDisplay}</span>
+    <div className="w-full -mx-4 px-4">
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className={`h-5 w-5 ${titleIcon}`} />
+            <h3 className="font-semibold text-lg">{titleText}</h3>
+            <Badge variant="secondary" className={badgeColor}>
+              {displayedUsers.length}
+            </Badge>
+          </div>
+          
+          <ScrollArea className="w-full">
+            <div className="flex gap-3 pb-2">
+              {displayedUsers.map((user) => {
+                const locationDisplay = getLocationDisplay(user.profile.location);
+                const statusDisplay = getStatusDisplay(user);
+                
+                return (
+                  <Card 
+                    key={user.id} 
+                    className="flex-shrink-0 w-[200px] hover:shadow-md transition-shadow cursor-pointer group"
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex flex-col items-center text-center space-y-3">
+                        {/* Avatar with status indicator */}
+                        <div className="relative">
+                          <Avatar className="h-16 w-16">
+                            <AvatarImage
+                              src={getAvatarSrc(user.profile.profilePicture)}
+                            />
+                            <AvatarFallback className="text-lg bg-primary text-primary-foreground">
+                              {user.profile.profilePicture?.type === 'avatar'
+                                ? '🎭'
+                                : user.username?.charAt(0).toUpperCase() || user.mobileNumber?.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {/* Status indicator */}
+                          <div className={`absolute -bottom-1 -right-1 h-4 w-4 border-2 border-white rounded-full ${statusDisplay.color}`}>
+                            {statusDisplay.icon}
                           </div>
-                        )}
+                        </div>
+                        
+                        {/* Username */}
+                        <div className="space-y-1">
+                          <h4 className="font-medium text-sm truncate w-full">
+                            @{user.username}
+                          </h4>
+                          
+                          {/* Location */}
+                          {locationDisplay && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              <span className="truncate">{locationDisplay}</span>
+                            </div>
+                          )}
 
-                        {/* Offline badge */}
-                        {!isOnline && (
-                          <Badge variant="outline" className="text-xs">
-                            Offline
-                          </Badge>
-                        )}
+                          {/* Status indicator - just the colored dot */}
+                          <div className="flex items-center justify-center">
+                            <div className={`w-2 h-2 rounded-full ${statusDisplay.color}`}></div>
+                          </div>
+                        </div>
+                        
+                        {/* Message Button */}
+                        <Button
+                          size="sm"
+                          className="w-full text-xs h-7"
+                          onClick={() => onMessageUser?.(user.id, user.username)}
+                        >
+                          <MessageCircle className="h-3 w-3 mr-1" />
+                          Message
+                        </Button>
                       </div>
-                      
-                      {/* Message Button */}
-                      <Button
-                        size="sm"
-                        className="w-full text-xs h-7"
-                        onClick={() => onMessageUser?.(user.id, user.username)}
-                      >
-                        <MessageCircle className="h-3 w-3 mr-1" />
-                        Message
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </ScrollArea>
-        
-        {displayedUsers.length > 5 && (
-          <div className="mt-3 text-center">
-            <p className="text-xs text-muted-foreground">
-              Scroll horizontally to see more users
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </ScrollArea>
+          
+          {displayedUsers.length > 5 && (
+            <div className="mt-3 text-center">
+              <p className="text-xs text-muted-foreground">
+                Scroll horizontally to see more users
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

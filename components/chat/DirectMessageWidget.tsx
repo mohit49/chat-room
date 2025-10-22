@@ -18,6 +18,7 @@ import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { useSound } from '@/lib/contexts/SoundContext';
 import { api } from '@/lib/api';
 import { checkBlockStatus } from '@/lib/api/block';
+import { OnlineStatus } from '@/types';
 
 interface DirectMessageWidgetProps {
   isOpen: boolean;
@@ -58,7 +59,7 @@ export default function DirectMessageWidget({
   targetUser 
 }: DirectMessageWidgetProps) {
   const { user } = useAuth();
-  const { socket, connected, connectionConfirmed, isUserOnline } = useSocket();
+  const { socket, connected, connectionConfirmed, isUserOnline, getUserStatus } = useSocket();
   const { soundEnabled, toggleSound, playMessageSound } = useSound();
   
   // Memoize socket event handlers
@@ -551,6 +552,24 @@ export default function DirectMessageWidget({
     return '';
   };
 
+  const getStatusDisplay = (userId: string) => {
+    const userStatus = getUserStatus(userId);
+    if (!userStatus) {
+      return { color: 'bg-gray-400' };
+    }
+    
+    switch (userStatus.status) {
+      case 'online':
+        return { color: 'bg-green-500' };
+      case 'away':
+        return { color: 'bg-yellow-500' };
+      case 'offline':
+        return { color: 'bg-gray-400' };
+      default:
+        return { color: 'bg-gray-400' };
+    }
+  };
+
   const formatMessageTime = (timestamp: string) => {
     try {
       const messageDate = new Date(timestamp);
@@ -616,10 +635,7 @@ export default function DirectMessageWidget({
                 <h3 className="font-semibold">{targetUser.username}</h3>
               </div>
               <div
-                className={`w-3 h-3 rounded-full ${
-                  isUserOnline(targetUser.id) ? 'bg-green-500' : 'bg-gray-400'
-                }`}
-                title={isUserOnline(targetUser.id) ? 'Online' : 'Offline'}
+                className={`w-3 h-3 rounded-full ${getStatusDisplay(targetUser.id).color}`}
               />
             </div>
           </div>

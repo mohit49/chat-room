@@ -67,7 +67,7 @@ const io = new SocketIOServer(server, {
   },
   allowEIO3: true,
   transports: ['polling', 'websocket'],
-  pingTimeout: 60000,
+  pingTimeout: 120000, // Increased to 2 minutes for better mobile connectivity
   pingInterval: 25000
 });
 

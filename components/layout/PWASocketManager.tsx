@@ -19,6 +19,10 @@ export function PWASocketManager() {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         console.log('📱 App went to background');
+        // Send app background event to server
+        if (socket && connected) {
+          socket.emit('app_background');
+        }
         // App went to background - ensure socket stays connected
         if (socket && !connected) {
           console.log('🔄 Attempting to reconnect socket in background...');
@@ -26,6 +30,10 @@ export function PWASocketManager() {
         }
       } else {
         console.log('📱 App came to foreground');
+        // Send app foreground event to server
+        if (socket && connected) {
+          socket.emit('app_foreground');
+        }
         // App came to foreground - check socket connection
         if (socket && !connected) {
           console.log('🔄 Attempting to reconnect socket in foreground...');
@@ -61,7 +69,19 @@ export function PWASocketManager() {
 
     const handlePageHide = () => {
       console.log('📱 Page hidden');
+      // Send app closing event to server
+      if (socket && connected) {
+        socket.emit('closing_app');
+      }
       // Don't disconnect socket when page is hidden in PWA
+    };
+
+    // Add beforeunload event listener for explicit app close
+    const handleBeforeUnload = () => {
+      console.log('📱 App is closing');
+      if (socket && connected) {
+        socket.emit('closing_app');
+      }
     };
 
     // Add event listeners
@@ -70,6 +90,7 @@ export function PWASocketManager() {
     window.addEventListener('offline', handleOffline);
     window.addEventListener('pageshow', handlePageShow);
     window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     // Periodic connection check for PWA
     const connectionCheckInterval = setInterval(() => {
@@ -85,6 +106,7 @@ export function PWASocketManager() {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('pageshow', handlePageShow);
       window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);

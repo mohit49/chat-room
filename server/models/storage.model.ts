@@ -1,7 +1,7 @@
 // Storage model - Now supports both MongoDB and in-memory
 // Automatically uses MongoDB if connected, falls back to in-memory
 
-import { User, UserProfile, ProfilePicture } from '../../types';
+import { User, UserProfile, ProfilePicture, OnlineStatus } from '../../types';
 import { database } from '../database/connection';
 import { userModelDB } from './user.model';
 
@@ -462,6 +462,36 @@ class StorageModel {
     // In-memory fallback
     console.log('Getting notification by ID (in-memory):', { notificationId, userId });
     return null;
+  }
+
+  async updateUserStatus(userId: string, updateData: Partial<User>): Promise<User> {
+    if (this.useDB()) {
+      return await userModelDB.updateUserStatus(userId, updateData);
+    }
+
+    // In-memory fallback
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const updatedUser = {
+      ...user,
+      ...updateData,
+      updatedAt: new Date()
+    };
+
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+
+  async getUsersWithStatus(): Promise<User[]> {
+    if (this.useDB()) {
+      return await userModelDB.getUsersWithStatus();
+    }
+
+    // In-memory fallback
+    return Array.from(this.users.values());
   }
 }
 

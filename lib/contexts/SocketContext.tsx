@@ -6,6 +6,13 @@ import { getAuthToken, isTokenExpired, removeAuthToken } from '@/lib/auth';
 import { getSocketUrl } from '@/lib/utils/apiUrl';
 import { getSocketEventManager } from '@/lib/socket/socketEvents';
 import { SocketSessionManager } from '@/lib/utils/socketSession';
+import { OnlineStatus } from '@/types';
+
+interface UserStatus {
+  userId: string;
+  status: OnlineStatus;
+  lastSeen?: Date;
+}
 
 interface SocketContextType {
   socket: Socket | null;
@@ -13,6 +20,7 @@ interface SocketContextType {
   connectionConfirmed: boolean;
   sessionId: string;
   isUserOnline: (userId: string) => boolean;
+  getUserStatus: (userId: string) => UserStatus | null;
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
@@ -27,12 +35,18 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const [connectionConfirmed, setConnectionConfirmed] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [sessionId, setSessionId] = useState('');
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [userStatuses, setUserStatuses] = useState<Map<string, UserStatus>>(new Map());
 
-  // Function to check if a user is online
+  // Function to check if a user is online (online or away)
   const isUserOnline = useCallback((userId: string) => {
-    return onlineUsers.has(userId);
-  }, [onlineUsers]);
+    const status = userStatuses.get(userId);
+    return status?.status === 'online' || status?.status === 'away';
+  }, [userStatuses]);
+
+  // Function to get user status
+  const getUserStatus = useCallback((userId: string) => {
+    return userStatuses.get(userId) || null;
+  }, [userStatuses]);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -128,29 +142,94 @@ export function SocketProvider({ children }: SocketProviderProps) {
     // Handle online users updates
     newSocket.on('online_users_update', (users: string[]) => {
       console.log('👥 Online users update:', users);
-      setOnlineUsers(new Set(users));
+      setUserStatuses(prev => {
+        const newMap = new Map(prev);
+        // Clear all users first
+        newMap.clear();
+        // Add online users
+        users.forEach(userId => {
+          newMap.set(userId, { userId, status: 'online' });
+        });
+        return newMap;
+      });
+    });
+
+    // Handle three-tier status events
+    newSocket.on('user_online', (data: { userId: string; user: any }) => {
+      console.log('👤 User came online:', data);
+      setUserStatuses(prev => {
+        const newMap = new Map(prev);
+        newMap.set(data.userId, { 
+          userId: data.userId, 
+          status: 'online',
+          lastSeen: new Date()
+        });
+        return newMap;
+      });
+    });
+
+    newSocket.on('user_away', (data: { userId: string }) => {
+      console.log('👤 User went away:', data);
+      setUserStatuses(prev => {
+        const newMap = new Map(prev);
+        const currentStatus = newMap.get(data.userId);
+        newMap.set(data.userId, { 
+          userId: data.userId, 
+          status: 'away',
+          lastSeen: currentStatus?.lastSeen || new Date()
+        });
+        return newMap;
+      });
+    });
+
+    newSocket.on('user_offline', (data: { userId: string; lastSeen?: Date }) => {
+      console.log('👤 User went offline:', data);
+      setUserStatuses(prev => {
+        const newMap = new Map(prev);
+        newMap.set(data.userId, { 
+          userId: data.userId, 
+          status: 'offline',
+          lastSeen: data.lastSeen || new Date()
+        });
+        return newMap;
+      });
     });
 
     newSocket.on('user_online_status', (data: { userId: string; isOnline: boolean }) => {
       console.log('👤 User online status update:', data);
-      setOnlineUsers(prev => {
-        const newSet = new Set(prev);
+      setUserStatuses(prev => {
+        const newMap = new Map(prev);
         if (data.isOnline) {
-          newSet.add(data.userId);
+          newMap.set(data.userId, { 
+            userId: data.userId, 
+            status: 'online',
+            lastSeen: new Date()
+          });
         } else {
-          newSet.delete(data.userId);
+          // Keep existing status, just update lastSeen
+          const currentStatus = newMap.get(data.userId);
+          if (currentStatus) {
+            newMap.set(data.userId, { 
+              ...currentStatus, 
+              lastSeen: new Date()
+            });
+          }
         }
-        return newSet;
+        return newMap;
       });
     });
 
     newSocket.on('socket_mapping_update', (data: { userId: string; newSocketId: string; oldSocketId?: string }) => {
       console.log('🔄 Socket mapping update:', data);
       // Socket mapping updated - user is still online with new socket
-      setOnlineUsers(prev => {
-        const newSet = new Set(prev);
-        newSet.add(data.userId); // Ensure user stays online
-        return newSet;
+      setUserStatuses(prev => {
+        const newMap = new Map(prev);
+        newMap.set(data.userId, { 
+          userId: data.userId, 
+          status: 'online',
+          lastSeen: new Date()
+        });
+        return newMap;
       });
     });
 
@@ -159,8 +238,8 @@ export function SocketProvider({ children }: SocketProviderProps) {
       setConnected(false);
       setConnectionConfirmed(false);
       
-      // Clear online users when disconnected (will be refreshed on reconnect)
-      setOnlineUsers(new Set());
+      // Clear user statuses when disconnected (will be refreshed on reconnect)
+      setUserStatuses(new Map());
       
       // In PWA mode, try to reconnect more aggressively
       if (typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches) {
@@ -214,8 +293,9 @@ export function SocketProvider({ children }: SocketProviderProps) {
     connected,
     connectionConfirmed,
     sessionId,
-    isUserOnline
-  }), [socket, connected, connectionConfirmed, sessionId, isUserOnline]);
+    isUserOnline,
+    getUserStatus
+  }), [socket, connected, connectionConfirmed, sessionId, isUserOnline, getUserStatus]);
 
   // Don't render children until socket initialization is complete
   // This prevents components from mounting before socket is ready

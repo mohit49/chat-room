@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import { User as UserType, UserProfile, ProfilePicture, Location } from '../../../types';
+import { User as UserType, UserProfile, ProfilePicture, Location, OnlineStatus } from '../../../types';
 
 // Mongoose document interface
 export interface UserDocument extends Omit<UserType, 'id'>, Document {
@@ -74,6 +74,17 @@ const UserSchema = new Schema<UserDocument>(
     profile: {
       type: UserProfileSchema,
       default: () => ({}),
+    },
+    lastSeen: {
+      type: Date,
+      default: Date.now,
+      index: true, // Index for faster queries
+    },
+    onlineStatus: {
+      type: String,
+      enum: ['online', 'away', 'offline'],
+      default: 'offline',
+      index: true, // Index for faster queries
     },
   },
   {

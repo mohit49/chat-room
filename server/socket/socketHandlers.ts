@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import config from '../config';
 import { UserModel as User } from '../database/schemas/user.schema';
 import { notificationService } from '../services/notification.service';
+import { userService } from '../services/user.service';
+import { OnlineStatus } from '../../types';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -29,6 +31,9 @@ export const activeBroadcasts = new Map<string, {
 
 // Store open direct message chats
 export const openDirectMessageChats = new Map<string, Set<string>>(); // userId -> Set of userIds they're chatting with
+
+// Store disconnect timers for grace period
+export const disconnectTimers = new Map<string, NodeJS.Timeout>(); // userId -> timeout
 
 export const setupSocketHandlers = (io: SocketIOServer) => {
   console.log('🔌 Setting up Socket.IO handlers');
@@ -134,7 +139,17 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
           }
         }
 
-        // Broadcast online status to all users with updated socket mapping
+        // Cancel any existing disconnect timer
+        if (disconnectTimers.has(socket.userId)) {
+          clearTimeout(disconnectTimers.get(socket.userId));
+          disconnectTimers.delete(socket.userId);
+          console.log(`⏰ Cancelled disconnect timer for user ${socket.userId}`);
+        }
+
+        // Update user status to online and lastSeen
+        await userService.updateUserStatus(socket.userId, 'online', new Date());
+
+        // Broadcast online status to all users
         io.emit('user_online_status', {
           userId: socket.userId,
           isOnline: true,
@@ -233,13 +248,23 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
     });
 
     // Handle sending messages
-    socket.on('send_message', (messageData) => {
+    socket.on('send_message', async (messageData) => {
+      // Update lastSeen on message activity
+      if (socket.userId) {
+        await userService.updateLastSeen(socket.userId);
+      }
+      
       // Broadcast message to all room members including sender
       io.to(`room_${messageData.roomId}`).emit('new_message', messageData);
     });
 
     // Handle typing indicators for rooms
-    socket.on('user_typing', (data) => {
+    socket.on('user_typing', async (data) => {
+      // Update lastSeen on typing activity
+      if (socket.userId) {
+        await userService.updateLastSeen(socket.userId);
+      }
+      
       // Validate roomId
       if (!data.roomId || data.roomId === 'undefined' || data.roomId === 'null') {
         console.log(`❌ Invalid roomId received for user_typing: ${data.roomId}`);
@@ -662,6 +687,44 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
       }
     });
 
+    // Handle app lifecycle events
+    socket.on('closing_app', async () => {
+      console.log(`📱 User ${socket.userId} is closing the app`);
+      if (socket.userId) {
+        // Cancel any existing disconnect timer
+        if (disconnectTimers.has(socket.userId)) {
+          clearTimeout(disconnectTimers.get(socket.userId));
+          disconnectTimers.delete(socket.userId);
+        }
+        
+        // Immediately set offline (bypass grace period)
+        await userService.updateUserStatus(socket.userId, 'offline', new Date());
+        
+        // Broadcast offline status
+        socket.broadcast.emit('user_offline', {
+          userId: socket.userId,
+          lastSeen: new Date()
+        });
+        
+        console.log(`📱 User ${socket.userId} marked offline due to app close`);
+      }
+    });
+
+    socket.on('app_background', async () => {
+      console.log(`📱 User ${socket.userId} app went to background`);
+      if (socket.userId) {
+        // Update lastSeen but keep online status
+        await userService.updateLastSeen(socket.userId);
+      }
+    });
+
+    socket.on('app_foreground', async () => {
+      console.log(`📱 User ${socket.userId} app came to foreground`);
+      if (socket.userId) {
+        // Update lastSeen and ensure online status
+        await userService.updateUserStatus(socket.userId, 'online', new Date());
+      }
+    });
 
     // Handle disconnect
     socket.on('disconnect', async () => {
@@ -676,17 +739,36 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
           connectedUsers.delete(socket.userId);
           console.log(`🗑️ Removed user ${socket.userId} from connected users`);
           
-          // Broadcast offline status to all users
-          socket.broadcast.emit('user_online_status', {
-            userId: socket.userId,
-            isOnline: false
-          });
+          // Cancel any existing disconnect timer
+          if (disconnectTimers.has(socket.userId)) {
+            clearTimeout(disconnectTimers.get(socket.userId));
+            disconnectTimers.delete(socket.userId);
+          }
           
-          // Also emit user_offline event
-          socket.broadcast.emit('user_offline', {
+          // Set status to "away" immediately
+          await userService.updateUserStatus(socket.userId, 'away');
+          
+          // Broadcast away status to all users
+          socket.broadcast.emit('user_away', {
             userId: socket.userId
           });
-          console.log(`✅ Broadcast user_offline event for user ${socket.userId}`);
+          
+          // Start grace period timer (5 minutes)
+          const timer = setTimeout(async () => {
+            console.log(`⏰ Grace period expired for user ${socket.userId}, setting offline`);
+            await userService.updateUserStatus(socket.userId, 'offline', new Date());
+            
+            // Broadcast offline status with lastSeen
+            socket.broadcast.emit('user_offline', {
+              userId: socket.userId,
+              lastSeen: new Date()
+            });
+            
+            disconnectTimers.delete(socket.userId);
+          }, 5 * 60 * 1000); // 5 minutes
+          
+          disconnectTimers.set(socket.userId, timer);
+          console.log(`⏰ Started grace period timer for user ${socket.userId}`);
         } else {
           console.log(`🔄 User ${socket.userId} has newer connection, keeping online status`);
         }

@@ -1,7 +1,7 @@
 // MongoDB User Model with optimized operations
 
 import { UserModel, UserDocument } from '../database/schemas/user.schema';
-import { User, UserProfile } from '../../types';
+import { User, UserProfile, OnlineStatus } from '../../types';
 import { ConflictError, NotFoundError } from '../utils/errors';
 
 export class UserModelDB {
@@ -175,12 +175,46 @@ export class UserModelDB {
   }
 
   // Helper to convert Mongoose document to User type
+  async updateUserStatus(userId: string, updateData: Partial<User>): Promise<User> {
+    try {
+      const user = await UserModel.findByIdAndUpdate(
+        userId,
+        { $set: updateData },
+        { new: true, runValidators: false }
+      );
+
+      if (!user) {
+        throw new NotFoundError('User not found');
+      }
+
+      return this.documentToUser(user);
+    } catch (error) {
+      console.error('MongoDB: Error updating user status:', error);
+      throw error;
+    }
+  }
+
+  async getUsersWithStatus(): Promise<User[]> {
+    try {
+      const users = await UserModel.find({})
+        .select('mobileNumber username profile lastSeen onlineStatus createdAt updatedAt')
+        .sort({ onlineStatus: 1, lastSeen: -1 }); // Sort by status (online first), then by lastSeen
+
+      return users.map(user => this.documentToUser(user));
+    } catch (error) {
+      console.error('MongoDB: Error getting users with status:', error);
+      throw error;
+    }
+  }
+
   private documentToUser(doc: UserDocument): User {
     return {
       id: doc._id.toString(),
       mobileNumber: doc.mobileNumber,
       username: doc.username,
       profile: doc.profile,
+      lastSeen: doc.lastSeen,
+      onlineStatus: doc.onlineStatus,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };

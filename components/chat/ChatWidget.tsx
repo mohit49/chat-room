@@ -36,6 +36,7 @@ import { useSound } from '@/lib/contexts/SoundContext';
 import { useVoiceBroadcast } from '@/lib/contexts/VoiceBroadcastContext';
 import { api } from '@/lib/api';
 import { openChat } from '@/components/layout/GlobalChatManager';
+import { OnlineStatus } from '@/types';
 
 interface ChatMessage {
   id: string;
@@ -85,7 +86,7 @@ export default function ChatWidget({
   onClose, 
   userRole 
 }: ChatWidgetProps) {
-  const { socket, connected } = useSocket();
+  const { socket, connected, getUserStatus } = useSocket();
   const { user } = useAuth();
   const { soundEnabled, toggleSound, playMessageSound } = useSound();
   const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute, noiseCancellationLevel, setNoiseCancellationLevel } = useVoiceBroadcast();
@@ -693,6 +694,24 @@ export default function ChatWidget({
     return isOnline;
   };
 
+  const getStatusDisplay = (userId: string) => {
+    const userStatus = getUserStatus(userId);
+    if (!userStatus) {
+      return { color: 'bg-gray-400' };
+    }
+    
+    switch (userStatus.status) {
+      case 'online':
+        return { color: 'bg-green-500' };
+      case 'away':
+        return { color: 'bg-yellow-500' };
+      case 'offline':
+        return { color: 'bg-gray-400' };
+      default:
+        return { color: 'bg-gray-400' };
+    }
+  };
+
   // Get all image messages for lightbox
   const getImageMessages = () => {
     return messages
@@ -1054,9 +1073,7 @@ export default function ChatWidget({
                         </Avatar>
                         {/* Online status indicator */}
                         <div
-                          className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background ${
-                            isUserOnline(message.userId) ? 'bg-green-500' : 'bg-gray-400'
-                          }`}
+                          className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background ${getStatusDisplay(message.userId).color}`}
                         />
                       </div>
                       <div className="flex-1 min-w-0">

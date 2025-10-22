@@ -47,6 +47,19 @@ export interface Location {
 
 export type Gender = 'male' | 'female' | 'other' | '';
 
+export type OnlineStatus = 'online' | 'away' | 'offline';
+
+export interface User {
+  id: string;
+  mobileNumber: string;
+  username?: string;
+  profile: UserProfile;
+  lastSeen?: Date;
+  onlineStatus?: OnlineStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
