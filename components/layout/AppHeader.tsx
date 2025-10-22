@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -123,10 +124,14 @@ export default function AppHeader({
             </Button>
           )}
           
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">C</span>
-          </div>
-          <span className="font-bold text-lg text-foreground hidden sm:block">ChatApp</span>
+          <Image 
+            src="/logo-icon.png" 
+            alt="Flipy Chat Logo" 
+            width={32} 
+            height={32} 
+            className="w-8 h-8 rounded-lg"
+          />
+          <span className="font-bold text-lg text-foreground hidden sm:block">Flipy Chat</span>
         </div>
 
         {/* Left Section - Navigation (Desktop only) */}

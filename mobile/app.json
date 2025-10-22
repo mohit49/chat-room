@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Chat App Mobile",
-    "slug": "chat-app-mobile",
+    "name": "Flipy Chat Mobile",
+    "slug": "flipy-chat-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,7 +16,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.chatapp",
+      "bundleIdentifier": "com.flipychat.mobile",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to update your profile location.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload profile pictures.",
@@ -28,7 +28,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yourcompany.chatapp",
+      "package": "com.flipychat.mobile",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -44,7 +44,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Chat App to use your location."
+          "locationAlwaysAndWhenInUsePermission": "Allow Flipy Chat to use your location."
         }
       ]
     ]
