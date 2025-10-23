@@ -8,12 +8,14 @@ import { NotificationProvider } from "@/lib/contexts/NotificationContext";
 import { NudgeProvider } from "@/lib/contexts/NudgeContext";
 import { PushNotificationProvider } from "@/lib/contexts/PushNotificationContext";
 import { EnhancedNudgeProvider } from "@/lib/contexts/EnhancedNudgeContext";
+import { BroadcastProvider } from "@/lib/contexts/BroadcastContext";
 import { GlobalAuthChecker } from "@/components/auth/GlobalAuthChecker";
 import GlobalChatManager from "@/components/layout/GlobalChatManager";
 import GlobalSocketConnection from "@/components/layout/GlobalSocketConnection";
 import GlobalNudgeNotification from "@/components/layout/GlobalNudgeNotification";
 import GlobalNudgeListener from "@/components/layout/GlobalNudgeListener";
 import GlobalFollowListener from "@/components/layout/GlobalFollowListener";
+import GlobalBroadcastPanel from "@/components/layout/GlobalBroadcastPanel";
 import { PWASocketManager } from "@/components/layout/PWASocketManager";
 import { PWAManager } from "@/components/pwa/PWAManager";
 import { DynamicThemeColor } from "@/components/pwa/DynamicThemeColor";
@@ -84,16 +86,19 @@ export default function RootLayout({
                       <NudgeProvider>
                         <PushNotificationProvider>
                           <EnhancedNudgeProvider>
-                            <PWAManager>
-                              <GlobalSocketConnection />
-                              <PWASocketManager />
-                              <GlobalNudgeListener />
-                              <GlobalFollowListener />
-                              {children}
-                              <GlobalChatManager />
-                              <GlobalNudgeNotification />
-                              <Toaster />
-                            </PWAManager>
+                            <BroadcastProvider>
+                              <PWAManager>
+                                <GlobalSocketConnection />
+                                <PWASocketManager />
+                                <GlobalNudgeListener />
+                                <GlobalFollowListener />
+                                <GlobalBroadcastPanel />
+                                {children}
+                                <GlobalChatManager />
+                                <GlobalNudgeNotification />
+                                <Toaster />
+                              </PWAManager>
+                            </BroadcastProvider>
                           </EnhancedNudgeProvider>
                         </PushNotificationProvider>
                       </NudgeProvider>

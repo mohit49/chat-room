@@ -72,7 +72,7 @@ function ChatPageContent() {
   const { socket, connected } = useSocket();
   const { user } = useAuth();
   const { soundEnabled, toggleSound, playMessageSound } = useSound();
-  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute, noiseCancellationLevel, setNoiseCancellationLevel } = useVoiceBroadcast();
+  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute, isPaused, pauseBroadcast, resumeBroadcast, noiseCancellationLevel, setNoiseCancellationLevel } = useVoiceBroadcast();
   
   // Socket events
   const socketEvents = useSocketEvents({
@@ -134,20 +134,6 @@ function ChatPageContent() {
     onMessageDeleted: (data: { messageId: string; deletedBy?: string }) => {
       console.log('🗑️ Chat Page - Message deleted:', data);
       setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
-    },
-    onVoiceBroadcastStarted: (data: { userId: string; username: string; roomId: string }) => {
-      if (data.roomId === roomId) {
-        console.log('📻 Chat Page - Broadcast started:', data);
-        setBroadcastInfo({ userId: data.userId, username: data.username });
-        setBroadcastListening(false); // Default to paused - user must click Play
-      }
-    },
-    onVoiceBroadcastStopped: (data: { userId: string; roomId: string }) => {
-      if (data.roomId === roomId) {
-        console.log('📻 Chat Page - Broadcast stopped');
-        setBroadcastInfo(null);
-        setBroadcastListening(false);
-      }
     }
   }, `ChatPage-${roomId}`);
   
@@ -166,9 +152,6 @@ function ChatPageContent() {
   const [showImageLightbox, setShowImageLightbox] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
-  const [broadcastInfo, setBroadcastInfo] = useState<{ userId: string; username: string } | null>(null);
-  const [broadcastListening, setBroadcastListening] = useState(false); // Default to paused - user must click Play
-  const [broadcastMuted, setBroadcastMuted] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map()); // userId -> username
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -800,6 +783,21 @@ function ChatPageContent() {
                       <Radio className="h-4 w-4 mr-2" />
                       {isBroadcasting ? 'Stop Broadcasting' : 'Start Broadcasting'}
                     </DropdownMenuItem>
+                    {isBroadcasting && (
+                      <DropdownMenuItem onClick={isPaused ? resumeBroadcast : pauseBroadcast}>
+                        {isPaused ? (
+                          <>
+                            <Play className="h-4 w-4 mr-2" />
+                            Resume Broadcasting
+                          </>
+                        ) : (
+                          <>
+                            <Pause className="h-4 w-4 mr-2" />
+                            Pause Broadcasting
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuLabel className="text-xs text-muted-foreground">Noise Cancellation</DropdownMenuLabel>
                     <DropdownMenuItem 
@@ -868,30 +866,27 @@ function ChatPageContent() {
       </div>
 
       {/* Broadcasting Notification Strip */}
-      {(currentBroadcaster || broadcastInfo) && (
+      {currentBroadcaster && (
         <div className="fixed top-16 sm:top-20 left-0 right-0 z-40 bg-green-500 text-white px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between border-b shadow-lg">
           <div className="flex items-center gap-2 sm:gap-3 flex-1">
             <Radio className="h-4 w-4 sm:h-5 sm:w-5 animate-pulse" />
             <span className="text-xs sm:text-sm font-medium">
-              {(currentBroadcaster?.userId === user?.id || broadcastInfo?.userId === user?.id)
+              {currentBroadcaster.userId === user?.id
                 ? 'You are broadcasting now' 
-                : `${currentBroadcaster?.username || broadcastInfo?.username} is broadcasting now`
+                : `${currentBroadcaster.username} is broadcasting now`
               }
             </span>
           </div>
-          {(currentBroadcaster?.userId !== user?.id && broadcastInfo?.userId !== user?.id) && (
+          {currentBroadcaster.userId !== user?.id && (
             <div className="flex items-center gap-1 sm:gap-2">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  if (currentBroadcaster) toggleListen();
-                  else setBroadcastListening(!broadcastListening);
-                }}
+                onClick={toggleListen}
                 className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-white hover:bg-white/20"
-                title={(isListening || broadcastListening) ? "Pause" : "Play"}
+                title={isListening ? "Pause" : "Play"}
               >
-                {(isListening || broadcastListening) ? (
+                {isListening ? (
                   <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
                 ) : (
                   <Play className="h-3 w-3 sm:h-4 sm:w-4 ml-0.5" />
@@ -900,18 +895,29 @@ function ChatPageContent() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  if (currentBroadcaster) toggleMute();
-                  else setBroadcastMuted(!broadcastMuted);
-                }}
+                onClick={toggleMute}
                 className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-white hover:bg-white/20"
-                title={(isMuted || broadcastMuted) ? "Unmute" : "Mute"}
+                title={isMuted ? "Unmute" : "Mute"}
               >
-                {(isMuted || broadcastMuted) ? (
+                {isMuted ? (
                   <VolumeX className="h-3 w-3 sm:h-4 sm:w-4" />
                 ) : (
                   <Volume2 className="h-3 w-3 sm:h-4 sm:w-4" />
                 )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // Exit broadcast - stop listening
+                  if (isListening) {
+                    toggleListen();
+                  }
+                }}
+                className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-white hover:bg-red-500/30"
+                title="Exit Broadcast"
+              >
+                <X className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
             </div>
           )}
@@ -919,7 +925,7 @@ function ChatPageContent() {
       )}
 
       {/* Chat Area - Scrollable */}
-      <div className={`flex-1 ${(currentBroadcaster || broadcastInfo) ? 'pt-28 sm:pt-32' : 'pt-16 sm:pt-20'} pb-20 sm:pb-20 overflow-hidden`}>
+      <div className={`flex-1 ${currentBroadcaster ? 'pt-28 sm:pt-32' : 'pt-16 sm:pt-20'} pb-20 sm:pb-20 overflow-hidden`}>
         <Card className="h-full border-0 rounded-none">
           <CardContent className="flex-1 p-0 h-full">
             <ScrollArea 
@@ -1241,8 +1247,44 @@ function ChatPageContent() {
 
 export default function FullScreenChatPage() {
   const params = useParams();
+  const { user } = useAuth();
+  const [roomName, setRoomName] = useState<string>('Room');
+  const [userRole, setUserRole] = useState<'admin' | 'editor' | 'viewer' | null>(null);
+
+  // Fetch room name and user role
+  useEffect(() => {
+    const fetchRoomDetails = async () => {
+      try {
+        const response = await api.getRoomById(params.id as string) as any;
+        if (response.success && response.room) {
+          setRoomName(response.room.name);
+          
+          // Find the current user's role in this room
+          const member = response.room.members?.find((m: any) => m.userId === user?.id);
+          if (member) {
+            setUserRole(member.role);
+            console.log('👤 User role in room:', member.role);
+          } else {
+            setUserRole(null);
+            console.log('⚠️ User is not a member of this room');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch room details:', error);
+      }
+    };
+
+    if (params.id && user?.id) {
+      fetchRoomDetails();
+    }
+  }, [params.id, user?.id]);
+
   return (
-    <VoiceBroadcastProvider roomId={params.id as string} userRole="admin">
+    <VoiceBroadcastProvider 
+      roomId={params.id as string} 
+      roomName={roomName}
+      userRole={userRole}
+    >
       <ChatPageContent />
     </VoiceBroadcastProvider>
   );

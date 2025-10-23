@@ -6,18 +6,22 @@
 - Only room admins can start broadcasts
 - Radio button in chat header (top right)
 - One broadcaster per room at a time
+- **NEW: Global broadcast panel** appears below header on all pages
 
 ### 2. **Real-Time Audio Streaming**
 - Captures microphone audio with high quality
 - Streams via Socket.IO to all room members
 - Low-latency audio playback
 - Echo cancellation & noise suppression
+- **NEW: Pause/Resume** broadcasting while keeping the session active
 
 ### 3. **Broadcast Notifications**
-- **Green strip** in chat showing broadcaster name
-- **"Live" badge** on room cards (home/rooms pages)
-- **Play/Pause/Mute controls** for listeners
-- Persists across page refreshes
+- **NEW: Beautiful gradient panel** below header when broadcast is active
+- Shows broadcaster name and room name
+- **NEW: Pause/Resume/Stop** controls for broadcasters
+- **Play/Pause/Mute** controls for listeners
+- Persists across page refreshes and navigation
+- Visible on all pages (home, rooms, profile, etc.)
 
 ---
 
@@ -91,33 +95,44 @@ npm run dev
    - Open chat (widget or full-screen)
    - Click Radio button (📻) in top right
    - Allow microphone access when prompted
-   - Green strip appears: "You are broadcasting now"
+   - **Global gradient panel appears** below header on all pages
 
 2. **While Broadcasting**
    - Speak into your microphone
    - All room members hear you in real-time
    - Radio button turns red with pulse animation
+   - **Global panel shows:** Room name, Live badge, and controls
+   - Panel persists as you navigate between pages
 
-3. **Stop Broadcasting**
-   - Click Radio button again
-   - Microphone stops
-   - Green strip disappears for everyone
+3. **Pause/Resume Broadcasting**
+   - Click **Pause** button in the global panel
+   - Microphone stops temporarily
+   - Broadcast session remains active
+   - Click **Resume** to continue broadcasting
+   - All listeners see the broadcast status
+
+4. **Stop Broadcasting**
+   - Click **Stop** button in the global panel (red button)
+   - Or click Radio button in chat header
+   - Microphone stops completely
+   - Global panel disappears for everyone
 
 ### **For Listeners (Other Users):**
 
 1. **Join Broadcast**
-   - Green strip automatically appears
-   - Shows broadcaster's name
-   - Audio starts playing automatically
+   - **Global gradient panel** automatically appears below header
+   - Shows broadcaster's name and room name
+   - Audio does not start automatically (user must click Play)
 
 2. **Control Playback**
    - **Play/Pause** (▶/⏸) - Control audio playback
    - **Mute/Unmute** (🔊/🔇) - Control volume
+   - Controls available in the global panel
 
-3. **From Room Cards**
-   - See "Live" badge on room cards
-   - Same Play/Pause/Mute controls available
-   - Click to join chat and listen
+3. **While Navigating**
+   - Global panel stays visible on all pages
+   - Continue listening while browsing other content
+   - Click panel to return to the room chat
 
 ---
 
@@ -251,16 +266,49 @@ NODE_ENV=production npm run server:prod
 
 ✅ Admin-only broadcasting
 ✅ Live audio streaming
-✅ Green notification strip
-✅ Broadcaster name display
-✅ Play/Pause controls
+✅ **NEW: Global gradient broadcast panel**
+✅ **NEW: Pause/Resume broadcasting**
+✅ Broadcaster name and room name display
+✅ Play/Pause controls for listeners
 ✅ Mute/Unmute controls
 ✅ Room card "Live" badges
-✅ Persistent broadcast state
-✅ Multi-page support (chat, home, rooms)
-✅ Mobile responsive
+✅ Persistent broadcast state across navigation
+✅ Multi-page support (visible on ALL pages)
+✅ Mobile responsive design
+✅ Beautiful gradient animations
 ✅ HTTPS security check
 ✅ Production console log removal
 
 **The system is complete and production-ready with HTTPS!** 🚀
+
+---
+
+## 🎨 UI Design
+
+### **Global Broadcast Panel**
+
+The global broadcast panel appears below the app header when a broadcast is active:
+
+**For Broadcasters (Purple Gradient):**
+- Beautiful purple gradient background (from #667eea to #764ba2)
+- Live badge with pulse animation
+- Room name display
+- Pause/Resume button (toggles between ⏸ and ▶)
+- Stop button (red, with ⏹ icon)
+- Animated wave effect at bottom
+
+**For Listeners (Pink Gradient):**
+- Beautiful pink/red gradient background (from #f093fb to #f5576c)
+- Live badge with pulse animation
+- Broadcaster name and room name
+- Play/Pause button
+- Mute/Unmute button
+- Animated wave effect at bottom
+
+**Key Features:**
+- Fixed position below header (z-index: 40)
+- Visible on all pages during broadcast
+- Smooth animations and transitions
+- Responsive design for mobile and desktop
+- Accessible controls with tooltips
 

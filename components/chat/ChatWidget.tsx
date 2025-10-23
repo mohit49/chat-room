@@ -89,7 +89,7 @@ export default function ChatWidget({
   const { socket, connected, getUserStatus } = useSocket();
   const { user } = useAuth();
   const { soundEnabled, toggleSound, playMessageSound } = useSound();
-  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute, noiseCancellationLevel, setNoiseCancellationLevel } = useVoiceBroadcast();
+  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute, isPaused, pauseBroadcast, resumeBroadcast, noiseCancellationLevel, setNoiseCancellationLevel } = useVoiceBroadcast();
   
   // Socket events
   const socketEvents = useSocketEvents({
@@ -867,6 +867,21 @@ export default function ChatWidget({
                     <Radio className="h-4 w-4 mr-2" />
                     {isBroadcasting ? 'Stop Broadcasting' : 'Start Broadcasting'}
                   </DropdownMenuItem>
+                  {isBroadcasting && (
+                    <DropdownMenuItem onClick={isPaused ? resumeBroadcast : pauseBroadcast}>
+                      {isPaused ? (
+                        <>
+                          <Play className="h-4 w-4 mr-2" />
+                          Resume Broadcasting
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="h-4 w-4 mr-2" />
+                          Pause Broadcasting
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel className="text-xs text-muted-foreground">Noise Cancellation</DropdownMenuLabel>
                   <DropdownMenuItem 

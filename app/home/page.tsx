@@ -17,6 +17,7 @@ import EditRoomModal from '@/components/room/EditRoomModal';
 import ChatWidget from '@/components/chat/ChatWidget';
 import DirectMessageWidget from '@/components/chat/DirectMessageWidget';
 import { VoiceBroadcastProvider } from '@/lib/contexts/VoiceBroadcastContext';
+import { useBroadcast } from '@/lib/contexts/BroadcastContext';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import ProfileCompletionBanner from '@/components/profile/ProfileCompletionBanner';
 import ProfileCompletionGuard from '@/components/profile/ProfileCompletionGuard';
@@ -58,6 +59,7 @@ interface BroadcastState {
 export default function HomePage() {
   const { user, logout } = useAuth();
   const { socket } = useSocket();
+  const { activeBroadcast, isListening, isMuted, toggleListen, toggleMute, startBroadcast: globalStartBroadcast } = useBroadcast();
   const router = useRouter();
   const { isComplete, missingFields } = useProfileCompletion();
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -71,6 +73,28 @@ export default function HomePage() {
   const [isDirectMessageOpen, setIsDirectMessageOpen] = useState(false);
   const [directMessageUser, setDirectMessageUser] = useState<{ id: string; username: string; profilePicture?: any } | null>(null);
   const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
+
+  // Generate a unique gradient for each room based on room ID
+  const getGradientForRoom = (roomId: string) => {
+    const gradients = [
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // Purple
+      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', // Pink-Red
+      'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', // Blue
+      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', // Green-Cyan
+      'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', // Pink-Yellow
+      'linear-gradient(135deg, #30cfd0 0%, #330867 100%)', // Cyan-Purple
+      'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', // Soft pastels
+      'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)', // Soft pink
+      'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)', // Peach
+      'linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%)', // Coral-Blue
+      'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)', // Lavender-Blue
+      'linear-gradient(135deg, #f8b195 0%, #f67280 100%)', // Coral-Rose
+    ];
+
+    // Use room ID to consistently pick the same gradient
+    const hash = roomId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return gradients[hash % gradients.length];
+  };
 
   useEffect(() => {
     if (user) {
@@ -188,41 +212,26 @@ export default function HomePage() {
   };
 
   const toggleBroadcastListen = (roomId: string) => {
-    setActiveBroadcasts(prev => {
-      const newMap = new Map(prev);
-      const current = newMap.get(roomId);
-      
-      if (current) {
-        const newListeningState = !current.isListening;
-        
-        // If starting to listen to this room
-        if (newListeningState) {
-          console.log('🎧 Starting to listen to room:', roomId);
-          
-          // Stop all other broadcasts
-          newMap.forEach((broadcast, otherRoomId) => {
-            if (otherRoomId !== roomId && broadcast.isListening) {
-              console.log('⏹️ Stopping broadcast from room:', otherRoomId);
-              newMap.set(otherRoomId, { ...broadcast, isListening: false });
-            }
-          });
-        }
-        
-        newMap.set(roomId, { ...current, isListening: newListeningState });
+    const room = rooms.find(r => r.id === roomId);
+    if (!room) return;
+
+    // Check if listening to this room already
+    const isListeningToThisRoom = activeBroadcast?.roomId === roomId && isListening;
+
+    if (isListeningToThisRoom) {
+      // Stop listening
+      toggleListen();
+    } else {
+      // Start listening - enable listening and it will auto-connect to broadcast
+      if (!isListening || activeBroadcast?.roomId !== roomId) {
+        toggleListen();
       }
-      return newMap;
-    });
+    }
   };
 
   const toggleBroadcastMute = (roomId: string) => {
-    setActiveBroadcasts(prev => {
-      const newMap = new Map(prev);
-      const current = newMap.get(roomId);
-      if (current) {
-        newMap.set(roomId, { ...current, isMuted: !current.isMuted });
-      }
-      return newMap;
-    });
+    // Use global mute toggle
+    toggleMute();
   };
 
   const getCurrentUserRole = (room: Room): 'admin' | 'editor' | 'viewer' | null => {
@@ -423,24 +432,54 @@ export default function HomePage() {
                 {rooms.map(room => {
                   const broadcastState = activeBroadcasts.get(room.id);
                   const isBroadcasting = !!broadcastState;
+                  // Check if this room is the active broadcast
+                  const isActiveGlobalBroadcast = activeBroadcast?.roomId === room.id;
+                  // Use global state for listening/muting
+                  const isListeningToThis = isActiveGlobalBroadcast && isListening;
+                  const isMutedThis = isActiveGlobalBroadcast && isMuted;
 
                   return (
-                  <Card key={room.id} className={`hover:shadow-md transition-shadow relative flex-shrink-0 w-[300px] snap-start ${isBroadcasting ? 'ring-2 ring-green-500' : ''}`}>
-                    {/* Broadcasting Badge - Top left */}
-                    {isBroadcasting && (
-                      <div className="absolute top-2 left-2 z-10">
-                        <Badge className="bg-green-500 hover:bg-green-600 animate-pulse">
-                          <Radio className="h-3 w-3 mr-1" />
-                          Live
-                        </Badge>
-                      </div>
-                    )}
-
-                    {/* Settings Icon - Positioned at top-right corner */}
-                    <div className="absolute top-2 right-2 z-10">
+                  <Card 
+                    key={room.id} 
+                    className="hover:shadow-md transition-shadow relative flex-shrink-0 w-[300px] snap-start"
+                  >
+                    {/* Top right corner - Green dot, Play button, Settings */}
+                    <div className="absolute top-2 right-2 z-50 flex items-center gap-2">
+                      {(isBroadcasting || isActiveGlobalBroadcast) && (
+                        <>
+                          {/* Green dot indicator */}
+                          <div className="relative flex items-center justify-center">
+                            <span className="flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                            </span>
+                          </div>
+                          
+                          {/* Play button for listeners (not for broadcaster) */}
+                          {!(broadcastState?.broadcasterId === user?.id || activeBroadcast?.userId === user?.id) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleBroadcastListen(room.id);
+                              }}
+                              className="h-8 w-8 p-0 hover:bg-accent relative z-50"
+                              title={isListeningToThis ? "Pause" : "Play"}
+                            >
+                              {isListeningToThis ? (
+                                <Pause className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <Play className="h-4 w-4 text-green-600" />
+                              )}
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-accent">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-accent relative z-50">
                             <Settings className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -457,7 +496,7 @@ export default function HomePage() {
                       </DropdownMenu>
                     </div>
 
-                    <CardHeader className="pb-0">
+                    <CardHeader className="pb-0 relative z-10">
                       <div className="flex items-center gap-3">
                         {room.profilePicture?.type === 'upload' && room.profilePicture.url ? (
                           <img 
@@ -482,7 +521,7 @@ export default function HomePage() {
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="pt-3 px-3">
+                    <CardContent className="pt-3 px-3 relative z-10">
                       <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                         {room.description || 'No description provided.'}
                       </p>
@@ -494,55 +533,6 @@ export default function HomePage() {
                           {getCurrentUserRole(room)}
                         </Badge>
                       </div>
-
-                      {/* Broadcasting Controls */}
-                      {isBroadcasting && broadcastState && (
-                        <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-green-800 truncate">
-                                🎙️ {broadcastState.broadcasterId === user?.id ? 'You are' : broadcastState.broadcasterName + ' is'} broadcasting
-                              </p>
-                            </div>
-                            {broadcastState.broadcasterId !== user?.id && (
-                              <div className="flex items-center gap-1 ml-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleBroadcastListen(room.id);
-                                  }}
-                                  className="h-7 w-7 p-0 text-green-700 hover:bg-green-100"
-                                  title={broadcastState.isListening ? "Pause" : "Play"}
-                                >
-                                  {broadcastState.isListening ? (
-                                    <Pause className="h-3 w-3" />
-                                  ) : (
-                                    <Play className="h-3 w-3 ml-0.5" />
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleBroadcastMute(room.id);
-                                  }}
-                                  className="h-7 w-7 p-0 text-green-700 hover:bg-green-100"
-                                  title={broadcastState.isMuted ? "Unmute" : "Mute"}
-                                >
-                                  {broadcastState.isMuted ? (
-                                    <VolumeX className="h-3 w-3" />
-                                  ) : (
-                                    <Volume2 className="h-3 w-3" />
-                                  )}
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
 
                       <Button 
                         onClick={() => handleChatNow(room)}
