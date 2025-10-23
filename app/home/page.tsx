@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MapPin, Calendar, User, Users, Settings, Edit3, Bell, MessageCircle, Radio, Play, Pause, Volume2, VolumeX } from 'lucide-react';
+import { MapPin, Calendar, User, Users, Settings, Edit3, Bell, MessageCircle, Radio, Play, Pause, Volume2, VolumeX, Square } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { APP_HEADER_CONFIGS } from '@/lib/config/app-header';
@@ -59,7 +59,7 @@ interface BroadcastState {
 export default function HomePage() {
   const { user, logout } = useAuth();
   const { socket } = useSocket();
-  const { activeBroadcast, isListening, isMuted, toggleListen, toggleMute, startBroadcast: globalStartBroadcast } = useBroadcast();
+  const { activeBroadcast, isListening, isMuted, toggleListen, toggleMute, startBroadcast: globalStartBroadcast, stopBroadcast } = useBroadcast();
   const router = useRouter();
   const { isComplete, missingFields } = useProfileCompletion();
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -443,7 +443,7 @@ export default function HomePage() {
                     key={room.id} 
                     className="hover:shadow-md transition-shadow relative flex-shrink-0 w-[300px] snap-start"
                   >
-                    {/* Top right corner - Green dot, Play button, Settings */}
+                    {/* Top right corner - Green dot, Play/Stop button, Settings */}
                     <div className="absolute top-2 right-2 z-50 flex items-center gap-2">
                       {(isBroadcasting || isActiveGlobalBroadcast) && (
                         <>
@@ -455,8 +455,23 @@ export default function HomePage() {
                             </span>
                           </div>
                           
-                          {/* Play button for listeners (not for broadcaster) */}
-                          {!(broadcastState?.broadcasterId === user?.id || activeBroadcast?.userId === user?.id) && (
+                          {/* Play/Pause button for listeners OR Stop button for broadcaster */}
+                          {(broadcastState?.broadcasterId === user?.id || activeBroadcast?.userId === user?.id) ? (
+                            // Stop button for broadcaster
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                stopBroadcast();
+                              }}
+                              className="h-8 w-8 p-0 hover:bg-red-500/10 relative z-50"
+                              title="Stop Broadcasting"
+                            >
+                              <Square className="h-4 w-4 text-red-600 fill-current" />
+                            </Button>
+                          ) : (
+                            // Play/Pause button for listeners
                             <Button
                               variant="ghost"
                               size="sm"

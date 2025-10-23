@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { ArrowLeft, X, Volume2, VolumeX, Mic, MicOff, MoreVertical, Trash2, MessageSquare, Image as ImageIcon, Play, Pause, Radio, Settings } from 'lucide-react';
+import { ArrowLeft, X, Volume2, VolumeX, Mic, MicOff, MoreVertical, Trash2, MessageSquare, Image as ImageIcon, Play, Pause, Radio, Settings, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -72,7 +72,7 @@ function ChatPageContent() {
   const { socket, connected } = useSocket();
   const { user } = useAuth();
   const { soundEnabled, toggleSound, playMessageSound } = useSound();
-  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute, isPaused, pauseBroadcast, resumeBroadcast, noiseCancellationLevel, setNoiseCancellationLevel } = useVoiceBroadcast();
+  const { isBroadcasting, canBroadcast, toggleBroadcast, currentBroadcaster, isListening, toggleListen, isMuted, toggleMute, isPaused, pauseBroadcast, resumeBroadcast, noiseCancellationLevel, setNoiseCancellationLevel, stopBroadcast } = useVoiceBroadcast();
   
   // Socket events
   const socketEvents = useSocketEvents({
@@ -877,7 +877,23 @@ function ChatPageContent() {
               }
             </span>
           </div>
-          {currentBroadcaster.userId !== user?.id && (
+          
+          {/* Controls - Different for broadcaster vs listeners */}
+          {currentBroadcaster.userId === user?.id ? (
+            // Broadcaster controls - Stop button
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={stopBroadcast}
+                className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-white hover:bg-red-500/30"
+                title="Stop Broadcasting"
+              >
+                <Square className="h-3 w-3 sm:h-4 sm:w-4 fill-current" />
+              </Button>
+            </div>
+          ) : (
+            // Listener controls - Play, Mute, Exit
             <div className="flex items-center gap-1 sm:gap-2">
               <Button
                 variant="ghost"

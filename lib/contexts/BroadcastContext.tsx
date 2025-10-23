@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface BroadcasterInfo {
   userId: string;
@@ -45,6 +46,7 @@ interface BroadcastProviderProps {
 export const BroadcastProvider = ({ children }: BroadcastProviderProps) => {
   const { socket } = useSocket();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [activeBroadcast, setActiveBroadcast] = useState<BroadcasterInfo | null>(null);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -471,6 +473,17 @@ export const BroadcastProvider = ({ children }: BroadcastProviderProps) => {
 
     socket.on('voice_broadcast_stopped', (data: { userId: string; roomId: string }) => {
       console.log('📻 Remote broadcast stopped');
+      
+      // Show notification if user was listening
+      if (isListening && activeBroadcast?.roomId === data.roomId) {
+        const broadcasterName = activeBroadcast.username || 'The broadcaster';
+        toast({
+          title: "Broadcast Ended",
+          description: `${broadcasterName} has ended the broadcast.`,
+          variant: "default",
+        });
+      }
+      
       setActiveBroadcast(null);
       setIsListening(false);
       
