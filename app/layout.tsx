@@ -24,24 +24,48 @@ import { NoSSR } from "@/components/ui/NoSSR";
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: "Chat App",
-  description: "A modern chat application with user profiles",
+  title: "Flipy Chat - Connect, Chat, and Collaborate Anywhere",
+  description: "Join Flipy Chat, a modern chat platform with real-time messaging, voice broadcasting, and secure communication. Create rooms, connect with people worldwide. 16+ safe community.",
+  keywords: "chat app, messaging, voice chat, online chat, real-time messaging, chat rooms, voice broadcasting, secure chat, social networking, flipy chat",
+  authors: [{ name: "Flipy Chat" }],
   manifest: "/manifest.json",
-  themeColor: "#FDFEFF",
+  themeColor: "#1f2937",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "Chat App",
+    statusBarStyle: "black-translucent",
+    title: "Flipy Chat",
   },
   icons: {
     icon: [
-      { url: "/icon-192x192.svg", sizes: "192x192", type: "image/svg+xml" },
-      { url: "/icon-512x512.svg", sizes: "512x512", type: "image/svg+xml" },
+      { url: "/logo-icon.png", sizes: "192x192", type: "image/png" },
+      { url: "/logo-icon.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [
-      { url: "/icon-192x192.svg", sizes: "192x192", type: "image/svg+xml" },
+      { url: "/logo-icon.png", sizes: "192x192", type: "image/png" },
     ],
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://flipychat.com",
+    siteName: "Flipy Chat",
+    title: "Flipy Chat - Connect, Chat, and Collaborate Anywhere",
+    description: "Modern chat platform with real-time messaging, voice broadcasting, and secure communication. Join our 16+ safe community.",
+    images: [
+      {
+        url: "/logo-icon.png",
+        width: 1200,
+        height: 630,
+        alt: "Flipy Chat Logo",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Flipy Chat - Connect, Chat, and Collaborate Anywhere",
+    description: "Modern chat platform with real-time messaging, voice broadcasting, and secure communication.",
+    images: ["/logo-icon.png"],
   },
 };
 
@@ -54,11 +78,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#FDFEFF" />
+        <meta name="theme-color" content="#1f2937" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Chat App" />
-        <link rel="apple-touch-icon" href="/icon-192x192.svg" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Flipy Chat" />
+        <link rel="apple-touch-icon" href="/logo-icon.png" />
       </head>
       <body className="antialiased" suppressHydrationWarning>
         <script

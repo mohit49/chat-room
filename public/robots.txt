@@ -1,0 +1,15 @@
+# robots.txt for ChatApp
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /privacy-policy
+Disallow: /home
+Disallow: /profile
+Disallow: /rooms
+Disallow: /notifications
+Disallow: /users
+Disallow: /login
+
+# Sitemap location
+Sitemap: https://chatapp.com/sitemap.xml
+

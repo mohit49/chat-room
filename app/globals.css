@@ -129,4 +129,26 @@
   [__processed_*] {
     /* These attributes are added by browser extensions and should be ignored */
   }
+
+  /* Custom scrollbar styles for dark theme */
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-gray-800/50 rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-gray-700 rounded-full hover:bg-gray-600;
+  }
+
+  .scrollbar-thumb-gray-700::-webkit-scrollbar-thumb {
+    @apply bg-gray-700 hover:bg-gray-600;
+  }
+
+  .scrollbar-track-gray-800\/50::-webkit-scrollbar-track {
+    @apply bg-gray-800/50;
+  }
 }

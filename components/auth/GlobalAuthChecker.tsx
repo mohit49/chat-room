@@ -9,7 +9,7 @@ interface GlobalAuthCheckerProps {
 }
 
 // Simple route configuration
-const PUBLIC_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password', '/'];
+const PUBLIC_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password', '/', '/about', '/privacy-policy'];
 const AUTH_REDIRECT_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password'];
 
 export function GlobalAuthChecker({ children }: GlobalAuthCheckerProps) {
@@ -57,12 +57,12 @@ export function GlobalAuthChecker({ children }: GlobalAuthCheckerProps) {
       return;
     }
 
-    // If user is on root path, redirect based on auth status
-    if (pathname === '/') {
-      const redirectTo = isAuthenticated ? '/home' : '/login';
-      console.log(`🔐 User ${isAuthenticated ? 'authenticated' : 'not authenticated'}, redirecting to ${redirectTo}`);
+    // If user is authenticated and on root path, redirect to home
+    // Non-authenticated users can see the landing page
+    if (pathname === '/' && isAuthenticated) {
+      console.log('🔐 User authenticated on landing page, redirecting to /home');
       setHasRedirected(true);
-      router.push(redirectTo);
+      router.push('/home');
       return;
     }
 

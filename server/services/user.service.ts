@@ -97,6 +97,22 @@ export class UserService {
   async getUsersWithStatus(): Promise<User[]> {
     return await storage.getUsersWithStatus();
   }
+
+  async getPublicUsers(limit: number = 10): Promise<User[]> {
+    // Get all users with complete profiles (not just online users)
+    const { UserModel } = await import('../database/schemas/user.schema');
+    
+    const users = await UserModel.find({
+      username: { $exists: true, $ne: null, $ne: '' },
+      'profile.age': { $exists: true, $ne: null },
+      'profile.gender': { $exists: true, $ne: null, $ne: '' }
+    })
+    .sort({ updatedAt: -1 }) // Sort by most recently updated
+    .limit(limit)
+    .lean();
+    
+    return users as User[];
+  }
 }
 
 export const userService = new UserService();

@@ -511,6 +511,17 @@ class RoomServiceImpl implements RoomService {
 
     return room;
   }
+
+  async getPublicRooms(limit: number = 10): Promise<IRoom[]> {
+    // Get active rooms with the most members for public display
+    const rooms = await Room.find({ isActive: true })
+      .sort({ updatedAt: -1 })
+      .limit(limit)
+      .maxTimeMS(15000);
+    
+    // Convert to JSON to apply transform
+    return rooms.map(room => room.toJSON()) as IRoom[];
+  }
 }
 
 export default new RoomServiceImpl();

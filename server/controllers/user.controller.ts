@@ -1,9 +1,33 @@
-import { Response, NextFunction } from 'express';
+import { Response, NextFunction, Request } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { userService } from '../services/user.service';
 import { UpdateProfileInput, UpdateLocationInput } from '../validators/user.validator';
 
 export class UserController {
+  // Public endpoint for landing page - no authentication required
+  getPublicUsers = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const users = await userService.getPublicUsers(limit);
+
+      return res.json({
+        success: true,
+        users: users.map(user => ({
+          _id: user.id,
+          username: user.username,
+          profile: {
+            profilePicture: user.profile.profilePicture,
+            location: user.profile.location,
+            gender: user.profile.gender,
+            age: user.profile.age,
+          },
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   getProfile = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const userId = req.userId!;

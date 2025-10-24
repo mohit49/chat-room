@@ -1,5 +1,6 @@
 import express from 'express';
 import {
+  getPublicRooms,
   createRoom,
   getRooms,
   getRoomById,
@@ -18,7 +19,10 @@ import { authenticateToken } from '../middleware/auth';
 
 const router = express.Router();
 
-// All routes require authentication
+// Public route for landing page - no authentication required
+router.get('/public', getPublicRooms);
+
+// All other routes require authentication
 router.use(authenticateToken);
 
 // Room CRUD operations

@@ -2,6 +2,25 @@ import { Request, Response } from 'express';
 import roomService from '../services/room.service';
 import { validateRoomCreation, validateRoomUpdate, validateAddMember, validateChangeRole, validateRemoveMember } from '../validators/room.validator';
 
+// Public endpoint for landing page - no authentication required
+export const getPublicRooms = async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const rooms = await roomService.getPublicRooms(limit);
+
+    res.json({
+      success: true,
+      rooms
+    });
+  } catch (error: any) {
+    console.error('Error fetching public rooms:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch rooms'
+    });
+  }
+};
+
 export const createRoom = async (req: Request, res: Response) => {
   try {
     const { error, value } = validateRoomCreation(req.body);

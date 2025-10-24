@@ -8,7 +8,10 @@ import { updateProfileSchema, updateLocationSchema } from '../validators/user.va
 
 const router = express.Router();
 
-// All routes require authentication
+// Public route for landing page - no authentication required
+router.get('/public', userController.getPublicUsers);
+
+// All other routes require authentication
 router.use(authenticateToken);
 
 router.get('/profile', userController.getProfile);
@@ -20,6 +23,4 @@ router.get('/search', userController.searchUsers);
 router.get('/:id', userController.getUserById);
 
 export default router;
-
-
 
