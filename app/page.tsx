@@ -18,11 +18,10 @@ import {
   Video,
   Shuffle,
   Link2,
-  Clock,
-  TrendingUp
+  Clock
 } from 'lucide-react';
 import LandingClientWrapper from '@/components/landing/LandingClientWrapper';
-import { InteractiveUserCards, InteractiveRoomCards } from '@/components/landing/InteractiveCards';
+import { UsersAndRoomsSection } from '@/components/landing/UsersAndRoomsSection';
 
 // SEO Metadata
 export const metadata: Metadata = {
@@ -42,82 +41,7 @@ export const metadata: Metadata = {
   },
 };
 
-// Force dynamic rendering - don't cache this page
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
-// Get API URL for server-side fetch
-function getServerApiUrl() {
-  // For server-side rendering, use internal URL or fallback
-  // In production, the server should use localhost:3001 or the internal service URL
-  if (typeof window === 'undefined') {
-    // Server-side: use internal API URL
-    return process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-  }
-  // Client-side: use public URL
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-}
-
-// Fetch users server-side
-async function getPublicUsers() {
-  try {
-    const apiUrl = getServerApiUrl();
-    console.log('Fetching users from:', `${apiUrl}/user/public?limit=10`);
-    
-    const response = await fetch(`${apiUrl}/user/public?limit=10`, {
-      cache: 'no-store', // Ensures fresh data on each request
-      next: { revalidate: 0 }, // Disable caching completely
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      console.error('Failed to fetch users:', response.status, response.statusText);
-      return [];
-    }
-    
-    const data = await response.json();
-    console.log('Fetched users:', data.users?.length || 0);
-    return data.success && data.users ? data.users : [];
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    return [];
-  }
-}
-
-// Fetch rooms server-side
-async function getPublicRooms() {
-  try {
-    const apiUrl = getServerApiUrl();
-    console.log('Fetching rooms from:', `${apiUrl}/rooms/public?limit=10`);
-    
-    const response = await fetch(`${apiUrl}/rooms/public?limit=10`, {
-      cache: 'no-store', // Ensures fresh data on each request
-      next: { revalidate: 0 }, // Disable caching completely
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      console.error('Failed to fetch rooms:', response.status, response.statusText);
-      return [];
-    }
-    
-    const data = await response.json();
-    console.log('Fetched rooms:', data.rooms?.length || 0);
-    return data.success && data.rooms ? data.rooms : [];
-  } catch (error) {
-    console.error('Error fetching rooms:', error);
-    return [];
-  }
-}
-
-export default async function LandingPage() {
-  // Fetch data server-side
-  const users = await getPublicUsers();
-  const rooms = await getPublicRooms();
+export default function LandingPage() {
 
   // Structured Data for SEO
   const structuredData = {
@@ -302,83 +226,8 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        {/* Active Users Section */}
-        <section className="py-20 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center space-x-2 bg-green-500/20 text-green-400 px-4 py-2 rounded-full mb-4 border border-green-500/50">
-                <Users className="h-5 w-5" />
-                <span className="font-semibold">Our Community</span>
-              </div>
-              <h2 className="text-4xl font-bold text-white mb-4">
-                Meet Amazing People
-              </h2>
-              <p className="text-xl text-gray-300">
-                Connect with users from around the world on Flipy Chat
-              </p>
-            </div>
-
-            {users.length > 0 ? (
-              <div className="relative">
-                <div className="flex gap-6 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800/50">
-                  <InteractiveUserCards users={users} />
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <Users className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400 text-lg">No active users at the moment</p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Popular Rooms Section */}
-        <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-800/50">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center space-x-2 bg-orange-500/20 text-orange-400 px-4 py-2 rounded-full mb-4 border border-orange-500/50">
-                <TrendingUp className="h-5 w-5" />
-                <span className="font-semibold">Trending</span>
-              </div>
-              <h2 className="text-4xl font-bold text-white mb-4">
-                Popular Chat Rooms
-              </h2>
-              <p className="text-xl text-gray-300">
-                Join vibrant communities and discover new interests
-              </p>
-            </div>
-
-            {rooms.length > 0 ? (
-              <>
-                <div className="relative">
-                  <div className="flex gap-6 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800/50">
-                    <InteractiveRoomCards rooms={rooms} />
-                  </div>
-                </div>
-
-                <div className="mt-8 text-center">
-                  <Link href="/login">
-                    <Button variant="outline" size="lg" className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white">
-                      Explore All Rooms
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </Button>
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-12">
-                <MessageCircle className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400 text-lg">No chat rooms available</p>
-                <Link href="/login">
-                  <Button className="mt-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
-                    Create the First Room
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </div>
-        </section>
+        {/* Users and Rooms Sections - Client-side fetched */}
+        <UsersAndRoomsSection />
 
         {/* Why Choose Us Section */}
         <section className="py-20 px-4 sm:px-6 lg:px-8">
