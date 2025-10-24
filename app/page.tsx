@@ -42,10 +42,22 @@ export const metadata: Metadata = {
   },
 };
 
+// Get API URL for server-side fetch
+function getServerApiUrl() {
+  // For server-side rendering, use internal URL or fallback
+  // In production, the server should use localhost:3001 or the internal service URL
+  if (typeof window === 'undefined') {
+    // Server-side: use internal API URL
+    return process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+  }
+  // Client-side: use public URL
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+}
+
 // Fetch users server-side
 async function getPublicUsers() {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const apiUrl = getServerApiUrl();
     const response = await fetch(`${apiUrl}/user/public?limit=10`, {
       cache: 'no-store', // Ensures fresh data on each request
       headers: {
@@ -54,7 +66,7 @@ async function getPublicUsers() {
     });
     
     if (!response.ok) {
-      console.error('Failed to fetch users:', response.status);
+      console.error('Failed to fetch users:', response.status, response.statusText);
       return [];
     }
     
@@ -69,7 +81,7 @@ async function getPublicUsers() {
 // Fetch rooms server-side
 async function getPublicRooms() {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const apiUrl = getServerApiUrl();
     const response = await fetch(`${apiUrl}/rooms/public?limit=10`, {
       cache: 'no-store', // Ensures fresh data on each request
       headers: {
@@ -78,7 +90,7 @@ async function getPublicRooms() {
     });
     
     if (!response.ok) {
-      console.error('Failed to fetch rooms:', response.status);
+      console.error('Failed to fetch rooms:', response.status, response.statusText);
       return [];
     }
     
