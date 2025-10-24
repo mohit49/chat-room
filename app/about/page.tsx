@@ -33,9 +33,8 @@ export default function AboutPage() {
       <nav className="border-b border-gray-800 bg-gray-900/90 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center space-x-3">
-              <img src="/logo-icon.png" alt="Flipy Chat" className="h-10 w-10 rounded-lg" />
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Flipy Chat</span>
+            <Link href="/">
+              <img src="/logo-icon.png" alt="Flipy Chat" className="h-10 w-10 rounded-lg cursor-pointer hover:opacity-80 transition-opacity" />
             </Link>
             <div className="flex items-center space-x-4">
               <Link href="/">
@@ -294,10 +293,9 @@ export default function AboutPage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <img src="/logo-icon.png" alt="Flipy Chat" className="h-8 w-8 rounded-lg" />
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Flipy Chat</span>
-              </div>
+              <Link href="/">
+                <img src="/logo-icon.png" alt="Flipy Chat" className="h-8 w-8 rounded-lg mb-4 cursor-pointer hover:opacity-80 transition-opacity" />
+              </Link>
               <p className="text-sm text-gray-500">
                 Connecting people through modern communication
               </p>
