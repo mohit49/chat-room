@@ -42,6 +42,10 @@ export const metadata: Metadata = {
   },
 };
 
+// Force dynamic rendering - don't cache this page
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Get API URL for server-side fetch
 function getServerApiUrl() {
   // For server-side rendering, use internal URL or fallback
@@ -58,8 +62,11 @@ function getServerApiUrl() {
 async function getPublicUsers() {
   try {
     const apiUrl = getServerApiUrl();
+    console.log('Fetching users from:', `${apiUrl}/user/public?limit=10`);
+    
     const response = await fetch(`${apiUrl}/user/public?limit=10`, {
       cache: 'no-store', // Ensures fresh data on each request
+      next: { revalidate: 0 }, // Disable caching completely
       headers: {
         'Content-Type': 'application/json',
       },
@@ -71,6 +78,7 @@ async function getPublicUsers() {
     }
     
     const data = await response.json();
+    console.log('Fetched users:', data.users?.length || 0);
     return data.success && data.users ? data.users : [];
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -82,8 +90,11 @@ async function getPublicUsers() {
 async function getPublicRooms() {
   try {
     const apiUrl = getServerApiUrl();
+    console.log('Fetching rooms from:', `${apiUrl}/rooms/public?limit=10`);
+    
     const response = await fetch(`${apiUrl}/rooms/public?limit=10`, {
       cache: 'no-store', // Ensures fresh data on each request
+      next: { revalidate: 0 }, // Disable caching completely
       headers: {
         'Content-Type': 'application/json',
       },
@@ -95,6 +106,7 @@ async function getPublicRooms() {
     }
     
     const data = await response.json();
+    console.log('Fetched rooms:', data.rooms?.length || 0);
     return data.success && data.rooms ? data.rooms : [];
   } catch (error) {
     console.error('Error fetching rooms:', error);
