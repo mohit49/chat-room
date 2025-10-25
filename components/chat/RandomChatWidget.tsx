@@ -193,26 +193,123 @@ export default function RandomChatWidget() {
   // Initialize local media
   const initializeMedia = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
+      // If there's an existing stream, stop it first
+      if (localStreamRef.current) {
+        console.log('🛑 Stopping existing stream before reinitializing...');
+        localStreamRef.current.getTracks().forEach(track => {
+          track.stop();
+          console.log(`Stopped ${track.kind} track:`, track.id);
+        });
+        localStreamRef.current = null;
+      }
+
+      console.log('🎥 Initializing media devices...');
+      
+      let stream: MediaStream | null = null;
+      let hasVideo = true;
+      let hasAudio = true;
+
+      try {
+        // Try to get both video and audio
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640, max: 640 },
+            height: { ideal: 480, max: 480 },
+            frameRate: { ideal: 24, max: 30 },
+            facingMode: 'user'
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+      } catch (error) {
+        console.warn('⚠️ Could not get video+audio, trying audio only...', error);
+        hasVideo = false;
+        
+        try {
+          // Try audio only
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          });
+        } catch (audioError) {
+          console.warn('⚠️ Could not get audio either...', audioError);
+          hasAudio = false;
+          
+          // Create empty stream as fallback
+          stream = new MediaStream();
+          
+          toast({
+            title: 'No Camera/Microphone',
+            description: 'Continuing with audio-only mode. Partner will see your avatar.',
+            variant: 'default',
+          });
+        }
+      }
+
+      if (!stream) {
+        throw new Error('Could not initialize any media');
+      }
+
+      console.log('✅ Media stream obtained:', {
+        hasVideo,
+        hasAudio,
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length,
+        videoSettings: stream.getVideoTracks()[0]?.getSettings()
       });
 
       localStreamRef.current = stream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        console.log('📺 Local video srcObject set:', {
+          streamId: stream.id,
+          streamActive: stream.active,
+          hasVideo,
+          hasAudio,
+          videoElement: localVideoRef.current,
+          videoSrc: localVideoRef.current.src || 'MediaStream (no URL)',
+        });
+        // Ensure video plays
+        if (hasVideo) {
+          localVideoRef.current.play().catch(e => console.error('Error playing local video:', e));
+        }
       }
 
       // Set initial states based on tracks
-      stream.getVideoTracks().forEach(track => track.enabled = videoEnabled);
-      stream.getAudioTracks().forEach(track => track.enabled = audioEnabled);
+      stream.getVideoTracks().forEach(track => {
+        track.enabled = videoEnabled;
+        console.log('📹 Video track enabled:', track.enabled, 'ID:', track.id);
+      });
+      stream.getAudioTracks().forEach(track => {
+        track.enabled = audioEnabled;
+        console.log('🎤 Audio track enabled:', track.enabled, 'ID:', track.id);
+      });
+
+      // Update video enabled state if no video track
+      if (!hasVideo) {
+        setVideoEnabled(false);
+      }
 
       return stream;
     } catch (error) {
-      console.error('Error accessing media devices:', error);
+      console.error('❌ Error accessing media devices:', error);
+      
+      // Clean up if initialization failed
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+        localStreamRef.current = null;
+      }
+      
       toast({
         title: 'Media Error',
-        description: 'Could not access camera or microphone',
+        description: 'Could not access camera or microphone. You can still chat via text.',
         variant: 'destructive',
       });
       return null;
@@ -223,23 +320,93 @@ export default function RandomChatWidget() {
   const createPeerConnection = useCallback(() => {
     const pc = new RTCPeerConnection(rtcConfiguration);
 
-    // Add local stream tracks
+    // Add local stream tracks with proper sender configuration
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => {
-        pc.addTrack(track, localStreamRef.current!);
+      console.log('➕ Adding local tracks to peer connection...');
+      console.log('📊 Local stream details:', {
+        streamId: localStreamRef.current.id,
+        streamActive: localStreamRef.current.active,
+        tracks: localStreamRef.current.getTracks().map(t => ({
+          kind: t.kind,
+          id: t.id,
+          enabled: t.enabled,
+          readyState: t.readyState
+        }))
       });
+      
+      localStreamRef.current.getTracks().forEach(track => {
+        const sender = pc.addTrack(track, localStreamRef.current!);
+        console.log(`✅ Added ${track.kind} track:`, {
+          trackId: track.id,
+          trackEnabled: track.enabled,
+          trackReadyState: track.readyState,
+          sender: sender
+        });
+        
+        // Apply bandwidth constraints for video
+        if (track.kind === 'video' && sender) {
+          const parameters = sender.getParameters();
+          if (!parameters.encodings) {
+            parameters.encodings = [{}];
+          }
+          // Set max bitrate for smoother streaming (500 kbps for video)
+          parameters.encodings[0].maxBitrate = 500000; // 500 kbps
+          sender.setParameters(parameters)
+            .then(() => console.log('✅ Video bitrate limited to 500 kbps'))
+            .catch(e => console.error('Failed to set parameters:', e));
+        }
+      });
+    } else {
+      console.warn('⚠️ No local stream available when creating peer connection');
     }
 
     // Handle incoming tracks
     pc.ontrack = (event) => {
-      console.log('📹 Received remote track:', event.track.kind);
+      console.log('📹 Received remote track:', event.track.kind, event.streams);
+      console.log('📊 Remote track details:', {
+        trackId: event.track.id,
+        trackKind: event.track.kind,
+        trackEnabled: event.track.enabled,
+        trackMuted: event.track.muted,
+        trackReadyState: event.track.readyState,
+        streamId: event.streams[0]?.id,
+        streamActive: event.streams[0]?.active,
+        streamTracks: event.streams[0]?.getTracks().map(t => ({
+          kind: t.kind,
+          id: t.id,
+          enabled: t.enabled
+        }))
+      });
+      
       if (remoteVideoRef.current && event.streams[0]) {
+        console.log('✅ Setting remote video srcObject');
         remoteVideoRef.current.srcObject = event.streams[0];
+        console.log('📺 Remote video srcObject set:', {
+          streamId: event.streams[0].id,
+          streamActive: event.streams[0].active,
+          videoElement: remoteVideoRef.current,
+          videoSrc: remoteVideoRef.current.src || 'MediaStream (no URL)',
+          srcObject: remoteVideoRef.current.srcObject
+        });
+        // Ensure remote video plays
+        remoteVideoRef.current.play().catch(e => {
+          console.error('Error playing remote video:', e);
+          // Try again after a short delay
+          setTimeout(() => {
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.play().catch(console.error);
+            }
+          }, 500);
+        });
+      } else {
+        console.warn('⚠️ Remote video ref or stream not available');
       }
 
       if (event.track.kind === 'video') {
+        console.log('✅ Remote video track received');
         setRemoteVideoEnabled(true);
       } else if (event.track.kind === 'audio') {
+        console.log('✅ Remote audio track received');
         setRemoteAudioEnabled(true);
       }
     };
@@ -256,12 +423,35 @@ export default function RandomChatWidget() {
 
     // Handle connection state changes
     pc.onconnectionstatechange = () => {
-      console.log('🔗 Connection state:', pc.connectionState);
+      console.log('🔗 Peer Connection state:', pc.connectionState);
       if (pc.connectionState === 'connected') {
+        console.log('✅ WebRTC Connected!');
         setStatus('connected');
       } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        console.log('❌ WebRTC Disconnected/Failed');
         handlePartnerDisconnected();
       }
+    };
+
+    // Handle ICE connection state changes (additional check)
+    pc.oniceconnectionstatechange = () => {
+      console.log('🧊 ICE Connection state:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        console.log('✅ ICE Connected!');
+        setStatus('connected');
+      } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        console.log('❌ ICE Failed/Disconnected');
+      }
+    };
+
+    // Log ICE gathering state
+    pc.onicegatheringstatechange = () => {
+      console.log('📊 ICE Gathering state:', pc.iceGatheringState);
+    };
+
+    // Log signaling state
+    pc.onsignalingstatechange = () => {
+      console.log('📡 Signaling state:', pc.signalingState);
     };
 
     peerConnectionRef.current = pc;
@@ -272,17 +462,34 @@ export default function RandomChatWidget() {
   const startCall = useCallback(async () => {
     if (!socket || !sessionId) return;
 
-    console.log('📞 Starting call...');
+    console.log('📞 Starting call as CALLER (creating offer)...');
+    
+    // Create peer connection and store it
     const pc = createPeerConnection();
+    
+    // Add a small delay to ensure ontrack handler is registered
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     try {
-      const offer = await pc.createOffer();
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+      });
+      
+      // Modify SDP to limit bandwidth
+      if (offer.sdp) {
+        offer.sdp = offer.sdp.replace(/b=AS:(\d+)/g, 'b=AS:500'); // Limit to 500 kbps
+        offer.sdp = offer.sdp.replace(/a=mid:(\d+)\r\n/g, 'a=mid:$1\r\nb=AS:500\r\n');
+        console.log('📊 SDP modified to limit bandwidth');
+      }
+      
       await pc.setLocalDescription(offer);
 
       socket.emit('random_chat_offer', {
         sessionId,
         offer: pc.localDescription,
       });
+      console.log('📤 Offer sent to peer');
     } catch (error) {
       console.error('❌ Error creating offer:', error);
     }
@@ -292,17 +499,49 @@ export default function RandomChatWidget() {
   const handleOffer = useCallback(async (data: { offer: RTCSessionDescriptionInit }) => {
     if (!socket || !sessionId) return;
 
-    console.log('📥 Received offer');
-    const pc = createPeerConnection();
+    console.log('📥 Received offer from peer - I am ANSWERER');
+    
+    // Create or reuse peer connection
+    let pc = peerConnectionRef.current;
+    if (!pc) {
+      console.log('Creating new peer connection for answerer');
+      pc = createPeerConnection();
+    } else {
+      console.log('Reusing existing peer connection');
+    }
+    
+    // Add a small delay to ensure ontrack handler is registered
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     try {
+      console.log('Setting remote description (offer)...');
       await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+      console.log('✅ Remote description set');
+      
+      console.log('Creating answer...');
       const answer = await pc.createAnswer();
+      
+      // Modify SDP to limit bandwidth
+      if (answer.sdp) {
+        answer.sdp = answer.sdp.replace(/b=AS:(\d+)/g, 'b=AS:500'); // Limit to 500 kbps
+        answer.sdp = answer.sdp.replace(/a=mid:(\d+)\r\n/g, 'a=mid:$1\r\nb=AS:500\r\n');
+        console.log('📊 Answer SDP modified to limit bandwidth');
+      }
+      
       await pc.setLocalDescription(answer);
+      console.log('✅ Local description (answer) set');
 
       socket.emit('random_chat_answer', {
         sessionId,
         answer: pc.localDescription,
+      });
+      console.log('📤 Answer sent to peer');
+      
+      // Log connection state
+      console.log('📊 Peer connection state after answer:', {
+        connectionState: pc.connectionState,
+        iceConnectionState: pc.iceConnectionState,
+        signalingState: pc.signalingState
       });
     } catch (error) {
       console.error('❌ Error handling offer:', error);
@@ -360,8 +599,13 @@ export default function RandomChatWidget() {
       });
       setCurrentHistoryIndex(prev => prev + 1);
 
-      // Initialize media and start call
-      await initializeMedia();
+      // Check if media is already initialized
+      if (!localStreamRef.current) {
+        console.log('📹 Media not initialized, initializing now...');
+        await initializeMedia();
+      } else {
+        console.log('📹 Media already initialized, reusing existing stream');
+      }
       
       // Small delay to ensure both peers are ready
       setTimeout(() => {
@@ -506,7 +750,13 @@ export default function RandomChatWidget() {
   const startRandomChat = useCallback(async () => {
     if (!socket) return;
 
-    await initializeMedia();
+    // Only initialize media if not already initialized
+    if (!localStreamRef.current) {
+      console.log('📹 Initializing media for first time...');
+      await initializeMedia();
+    } else {
+      console.log('📹 Media already initialized, skipping initialization');
+    }
     
     // Prepare filters - exclude 'any' values and empty values
     const cleanFilters: any = {};
@@ -891,12 +1141,43 @@ export default function RandomChatWidget() {
         {/* Video Area */}
         <div className="flex-1 relative bg-black">
           {/* Remote Video */}
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="w-full h-full object-contain"
-          />
+          <div className="relative w-full h-full">
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              muted={false}
+              className="w-full h-full object-contain"
+              onLoadedMetadata={() => console.log('🎥 Remote video metadata loaded')}
+              onPlay={() => console.log('▶️ Remote video playing')}
+              onError={(e) => console.error('❌ Remote video error:', e)}
+            />
+            
+            {/* Show avatar/placeholder when no remote video */}
+            {!remoteVideoEnabled && partner && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                <Avatar className="h-32 w-32 mb-4 border-4 border-indigo-500">
+                  <AvatarImage 
+                    src={
+                      partner.profile.profilePicture?.type === 'upload' 
+                        ? partner.profile.profilePicture.url 
+                        : partner.profile.profilePicture?.type === 'avatar'
+                        ? `https://api.dicebear.com/7.x/${partner.profile.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${partner.profile.profilePicture.seed || partner.username}`
+                        : undefined
+                    }
+                  />
+                  <AvatarFallback className="text-4xl bg-indigo-600">
+                    {partner.username[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <h3 className="text-2xl font-bold text-white mb-2">{partner.username}</h3>
+                <p className="text-gray-400 flex items-center gap-2">
+                  <VideoOff className="h-5 w-5" />
+                  Camera Off - Audio Only
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Local Video (Picture-in-Picture or Enlarged) */}
           <div className={`absolute ${
@@ -912,6 +1193,9 @@ export default function RandomChatWidget() {
                 playsInline
                 muted
                 className={`w-full h-full object-cover ${activeFilter !== 'none' ? 'hidden' : ''}`}
+                onLoadedMetadata={() => console.log('🎥 Local video metadata loaded')}
+                onPlay={() => console.log('▶️ Local video playing')}
+                onError={(e) => console.error('❌ Local video error:', e)}
               />
               
               {/* Canvas for filtered video */}
