@@ -320,7 +320,7 @@ export default function OnlineUsersCarousel({ currentUserId, onMessageUser }: On
           </div>
           
           <ScrollArea className="w-full">
-            <div className="flex gap-3 pb-2 px-4 whitespace-nowrap">
+            <div className="flex gap-3 pb-2 px-0 whitespace-nowrap">
               {displayedUsers.map((user) => {
                 const locationDisplay = getLocationDisplay(user.profile.location);
                 const statusDisplay = getStatusDisplay(user);

@@ -12,6 +12,11 @@ interface GlobalAuthCheckerProps {
 const PUBLIC_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password', '/', '/about', '/privacy-policy'];
 const AUTH_REDIRECT_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password'];
 
+// Function to check if path is instant chat (dynamic route)
+const isInstantChatRoute = (pathname: string) => {
+  return pathname.startsWith('/instant-chat/');
+};
+
 export function GlobalAuthChecker({ children }: GlobalAuthCheckerProps) {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
@@ -29,7 +34,7 @@ export function GlobalAuthChecker({ children }: GlobalAuthCheckerProps) {
       return;
     }
 
-    const isPublic = PUBLIC_ROUTES.includes(pathname);
+    const isPublic = PUBLIC_ROUTES.includes(pathname) || isInstantChatRoute(pathname);
     const isAuthRedirect = AUTH_REDIRECT_ROUTES.includes(pathname);
 
     console.log('🔐 GlobalAuthChecker:', {
@@ -38,7 +43,8 @@ export function GlobalAuthChecker({ children }: GlobalAuthCheckerProps) {
       loading,
       isPublic,
       isAuthRedirect,
-      hasRedirected
+      hasRedirected,
+      isInstantChat: isInstantChatRoute(pathname)
     });
 
     // If user is not authenticated and trying to access protected route

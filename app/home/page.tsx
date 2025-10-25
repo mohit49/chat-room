@@ -28,6 +28,7 @@ import { getFollowCounts } from '@/lib/api/follow';
 import { api } from '@/lib/api';
 import { BannerCarousel } from '@/components/home/BannerCarousel';
 import BroadcastCard from '@/components/home/BroadcastCard';
+import InstantChatSection from '@/components/home/InstantChatSection';
 
 interface Room {
   id: string;
@@ -379,7 +380,7 @@ export default function HomePage() {
         />
 
         {/* Online Users Carousel */}
-        <div className="px-4">
+        <div className="px-0">
           <OnlineUsersCarousel 
             currentUserId={user.id}
             onMessageUser={(userId, username) => {
@@ -400,6 +401,15 @@ export default function HomePage() {
           featureName="voice broadcasting"
         >
           <BroadcastCard />
+        </ProfileCompletionGuard>
+
+        {/* Instant Chat Section */}
+        <ProfileCompletionGuard 
+          isComplete={isComplete} 
+          missingFields={missingFields}
+          featureName="instant chat"
+        >
+          <InstantChatSection />
         </ProfileCompletionGuard>
 
         {/* My Rooms Section */}

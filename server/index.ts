@@ -19,6 +19,7 @@ import directMessageRoutes from './routes/directMessage.routes';
 import notificationRoutesNew from './routes/notification.routes';
 import profilePictureRoutes from './routes/profilePicture.routes';
 import pushNotificationRoutes from './routes/pushNotification.routes';
+import instantChatRoutes from './routes/instantChat.routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { setupSocketHandlers, connectedUsers } from './socket/socketHandlers';
 import socketService from './services/socket.service';
@@ -317,6 +318,7 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/notifications/push', pushNotificationRoutes);  // Must be before /api/notifications
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/chat/direct-message', directMessageRoutes);  // Must be before /api/chat
+app.use('/api/chat/instant', instantChatRoutes);  // Instant chat routes
 app.use('/api/chat', chatRoutes);
 
 // Setup Socket.IO handlers

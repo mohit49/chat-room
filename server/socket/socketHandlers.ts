@@ -789,6 +789,106 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
       }
     });
 
+    // ====================
+    // Instant Chat Handlers
+    // ====================
+    
+    // Join instant chat room
+    socket.on('join_instant_chat', (data: { chatId: string; participantId: string }) => {
+      const { chatId, participantId } = data;
+      socket.join(`instant_chat_${chatId}`);
+      console.log(`👤 Participant ${participantId} joined instant chat: ${chatId}`);
+      
+      // Notify others in the chat
+      socket.to(`instant_chat_${chatId}`).emit('instant_chat_user_joined', {
+        participantId,
+        chatId
+      });
+    });
+
+    // Leave instant chat room
+    socket.on('leave_instant_chat', async (data: { chatId: string; participantId: string; isCreator?: boolean }) => {
+      const { chatId, participantId, isCreator } = data;
+      socket.leave(`instant_chat_${chatId}`);
+      console.log(`👤 Participant ${participantId} left instant chat: ${chatId}`);
+      
+      // If creator is leaving, end the chat for everyone
+      if (isCreator) {
+        console.log(`🚪 Creator is leaving instant chat ${chatId}, ending chat for all participants`);
+        
+        // Mark chat as inactive in database
+        try {
+          const { default: InstantChatModel } = await import('../database/schemas/instantChat.schema');
+          await InstantChatModel.findOneAndUpdate(
+            { chatId },
+            { isActive: false }
+          );
+        } catch (error) {
+          console.error('Error marking instant chat as inactive:', error);
+        }
+        
+        // Notify all participants that creator has ended the chat
+        io.to(`instant_chat_${chatId}`).emit('instant_chat_ended', {
+          chatId,
+          reason: 'Creator has left the chat'
+        });
+      } else {
+        // Regular participant leaving, just notify others
+        socket.to(`instant_chat_${chatId}`).emit('instant_chat_user_left', {
+          participantId,
+          chatId
+        });
+      }
+    });
+
+    // Send instant chat message
+    socket.on('instant_chat_message', (data: {
+      chatId: string;
+      message: any;
+    }) => {
+      console.log(`💬 Instant chat message in ${data.chatId}:`, data.message);
+      
+      // Broadcast to all participants in the instant chat
+      io.to(`instant_chat_${data.chatId}`).emit('instant_chat_message', {
+        chatId: data.chatId,
+        message: data.message
+      });
+    });
+
+    // Typing indicator for instant chat
+    socket.on('instant_chat_typing', (data: {
+      chatId: string;
+      participantId: string;
+      participantName: string;
+      isTyping: boolean;
+    }) => {
+      // Broadcast to others in the instant chat
+      socket.to(`instant_chat_${data.chatId}`).emit('instant_chat_typing', {
+        chatId: data.chatId,
+        participantId: data.participantId,
+        participantName: data.participantName,
+        isTyping: data.isTyping
+      });
+    });
+
+    // Delete message in instant chat
+    socket.on('instant_chat_delete_message', (data: {
+      chatId: string;
+      messageId: string;
+    }) => {
+      console.log(`🗑️ Delete message ${data.messageId} in instant chat ${data.chatId}`);
+      
+      // Broadcast to all participants in the instant chat (including sender)
+      io.to(`instant_chat_${data.chatId}`).emit('instant_chat_message_deleted', {
+        chatId: data.chatId,
+        messageId: data.messageId
+      });
+    });
+
+    // ====================
+    // End Instant Chat Handlers
+    // ====================
+
     // Handle disconnect
     socket.on('disconnect', async () => {
       console.log(`🔌 User ${socket.userId} disconnected`);
@@ -818,6 +918,7 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
           
           // Start grace period timer (5 minutes)
           const timer = setTimeout(async () => {
+            if (!socket.userId) return;
             console.log(`⏰ Grace period expired for user ${socket.userId}, setting offline`);
             await userService.updateUserStatus(socket.userId, 'offline', new Date());
             
@@ -830,7 +931,9 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
             disconnectTimers.delete(socket.userId);
           }, 5 * 60 * 1000); // 5 minutes
           
-          disconnectTimers.set(socket.userId, timer);
+          if (socket.userId) {
+            disconnectTimers.set(socket.userId, timer);
+          }
           console.log(`⏰ Started grace period timer for user ${socket.userId}`);
         } else {
           console.log(`🔄 User ${socket.userId} has newer connection, keeping online status`);

@@ -48,3 +48,30 @@ export const authenticateToken = async (
     next(error);
   }
 };
+
+// Optional authentication - doesn't fail if no token provided
+export const optionalAuth = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+
+    if (token) {
+      const decoded = authService.verifyToken(token);
+      req.userId = decoded.userId;
+      
+      // Fetch full user details
+      const user = await storage.getUserById(decoded.userId);
+      if (user) {
+        req.user = user;
+      }
+    }
+    
+    next();
+  } catch (error) {
+    // Ignore auth errors for optional auth
+    next();
+  }
+};
