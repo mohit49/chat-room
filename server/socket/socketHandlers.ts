@@ -433,56 +433,81 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
     // Voice broadcasting events
     socket.on('voice_broadcast_start', async (data) => {
       console.log('🎤 Voice broadcast started:', data);
-      const broadcastData = {
-        userId: socket.userId,
-        username: socket.user?.username || socket.user?.mobileNumber,
-        roomId: data.roomId
-      };
       
-      // Store active broadcast
-      activeBroadcasts.set(data.roomId, {
-        roomId: data.roomId,
-        userId: socket.userId!,
-        username: socket.user?.username || socket.user?.mobileNumber || 'Unknown',
-        startedAt: new Date()
-      });
-      console.log('📻 Active broadcast stored for room:', data.roomId);
-      
-      // Send to all room members in room channel
-      io.to(`room_${data.roomId}`).emit('voice_broadcast_started', broadcastData);
-      
-      // Also send to broadcaster
-      socket.emit('voice_broadcast_started', broadcastData);
-      
-      // Get all room members and send to each individually (for home/rooms page)
+      // ✅ SECURITY: Verify user is admin before allowing broadcast
       try {
         const roomSchema = await import('../database/schemas/room.schema');
         const RoomModel = roomSchema.default;
         const room = await RoomModel.findById(data.roomId);
         
-        if (room) {
-          // Send to each room member individually
-          room.members.forEach(member => {
-            const memberSocketId = connectedUsers.get(member.userId);
-            if (memberSocketId) {
-              io.to(memberSocketId).emit('voice_broadcast_started', broadcastData);
-            }
-          });
-          console.log('✅ Broadcast notification sent to all room members');
+        if (!room) {
+          console.error('❌ Room not found:', data.roomId);
+          socket.emit('broadcast_error', { error: 'Room not found' });
+          return;
         }
+        
+        // Check if user is admin
+        const member = room.members.find((m: any) => m.userId === socket.userId);
+        if (!member || member.role !== 'admin') {
+          console.error('❌ User is not admin, cannot broadcast:', socket.userId);
+          socket.emit('broadcast_error', { error: 'Only admins can broadcast' });
+          return;
+        }
+        
+        console.log('✅ Admin verification passed for user:', socket.userId);
+        
+        const broadcastData = {
+          userId: socket.userId,
+          username: socket.user?.username || socket.user?.mobileNumber,
+          roomId: data.roomId
+        };
+        
+        // Store active broadcast
+        activeBroadcasts.set(data.roomId, {
+          roomId: data.roomId,
+          userId: socket.userId!,
+          username: socket.user?.username || socket.user?.mobileNumber || 'Unknown',
+          startedAt: new Date()
+        });
+        console.log('📻 Active broadcast stored for room:', data.roomId);
+        
+        // Send to all room members in room channel
+        io.to(`room_${data.roomId}`).emit('voice_broadcast_started', broadcastData);
+        
+        // Also send to broadcaster
+        socket.emit('voice_broadcast_started', broadcastData);
+        
+        // Send to each room member individually (for home/rooms page)
+        room.members.forEach((member: any) => {
+          const memberSocketId = connectedUsers.get(member.userId);
+          if (memberSocketId) {
+            io.to(memberSocketId).emit('voice_broadcast_started', broadcastData);
+          }
+        });
+        console.log('✅ Broadcast notification sent to all room members');
+        
+        console.log('✅ Broadcast started notification sent to room:', data.roomId);
       } catch (error) {
-        console.error('❌ Error notifying room members:', error);
+        console.error('❌ Error starting broadcast:', error);
+        socket.emit('broadcast_error', { error: 'Failed to start broadcast' });
       }
-      
-      console.log('✅ Broadcast started notification sent to room:', data.roomId);
     });
 
     // Handle audio streaming
-    socket.on('audio_stream', (data: { roomId: string; audioData: number[] }) => {
+    socket.on('audio_stream', async (data: { roomId: string; audioData: number[]; format?: string }) => {
+      // ✅ SECURITY: Verify user is admin and is the active broadcaster
+      const activeBroadcast = activeBroadcasts.get(data.roomId);
+      
+      if (!activeBroadcast || activeBroadcast.userId !== socket.userId) {
+        console.warn('⚠️ Unauthorized audio stream attempt from user:', socket.userId);
+        return;
+      }
+      
       // Relay audio stream to all room members except broadcaster
       socket.to(`room_${data.roomId}`).emit('audio_stream', {
         roomId: data.roomId,
-        audioData: data.audioData
+        audioData: data.audioData,
+        format: data.format || 'float32' // Pass through the format
       });
     });
 
