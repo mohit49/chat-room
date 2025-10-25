@@ -486,6 +486,44 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
         });
         console.log('✅ Broadcast notification sent to all room members');
         
+        // 📲 Send push notifications to all room members (except broadcaster)
+        try {
+          const { UserModel } = await import('../database/schemas/user.schema');
+          const { pushNotificationService } = await import('../services/pushNotification.service');
+          
+          const memberIds = room.members
+            .filter((m: any) => m.userId !== socket.userId)
+            .map((m: any) => m.userId);
+
+          // Get users with push enabled
+          const usersWithPush = await UserModel.find({
+            _id: { $in: memberIds },
+            'profile.notificationSettings.pushEnabled': true
+          });
+
+          if (usersWithPush.length > 0) {
+            await pushNotificationService.sendPushToMultipleUsers(
+              usersWithPush.map((u: any) => u._id.toString()),
+              {
+                title: '🎙️ Live Broadcast Started!',
+                body: `${socket.user?.username || socket.user?.mobileNumber} is broadcasting in ${room.name}`,
+                icon: '/icon-192x192.svg',
+                data: {
+                  type: 'voice_broadcast',
+                  roomId: data.roomId,
+                  roomName: room.name,
+                  broadcasterId: socket.userId,
+                  broadcasterName: socket.user?.username || socket.user?.mobileNumber
+                }
+              }
+            );
+            console.log(`📲 Push notifications sent to ${usersWithPush.length} room members`);
+          }
+        } catch (pushError) {
+          console.error('❌ Failed to send push notifications for broadcast:', pushError);
+          // Don't fail the broadcast if push fails
+        }
+        
         console.log('✅ Broadcast started notification sent to room:', data.roomId);
       } catch (error) {
         console.error('❌ Error starting broadcast:', error);

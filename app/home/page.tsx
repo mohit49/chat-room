@@ -27,6 +27,7 @@ import { FollowListDialog } from '@/components/user/FollowListDialog';
 import { getFollowCounts } from '@/lib/api/follow';
 import { api } from '@/lib/api';
 import { BannerCarousel } from '@/components/home/BannerCarousel';
+import BroadcastCard from '@/components/home/BroadcastCard';
 
 interface Room {
   id: string;
@@ -391,6 +392,15 @@ export default function HomePage() {
             }}
           />
         </div>
+
+        {/* Voice Broadcast Card */}
+        <ProfileCompletionGuard 
+          isComplete={isComplete} 
+          missingFields={missingFields}
+          featureName="voice broadcasting"
+        >
+          <BroadcastCard />
+        </ProfileCompletionGuard>
 
         {/* My Rooms Section */}
         <ProfileCompletionGuard 
