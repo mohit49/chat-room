@@ -17,12 +17,17 @@ import {
   MicOff, 
   Send, 
   X, 
-  SkipForward, 
+  SkipForward,
+  SkipBack, 
   Settings, 
   Loader2,
   MessageSquare,
   Phone,
-  PhoneOff
+  PhoneOff,
+  Maximize2,
+  Minimize2,
+  Sparkles,
+  Eye
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getCountries, getCitiesByCountry, Country, City } from '@/lib/api/location';
@@ -66,6 +71,10 @@ export default function RandomChatWidget() {
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   
+  // History tracking for previous connections
+  const [chatHistory, setChatHistory] = useState<Array<{ partnerId: string; partnerUsername: string }>>([]);
+  const [currentHistoryIndex, setCurrentHistoryIndex] = useState(-1);
+  
   // Filters
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
@@ -86,6 +95,11 @@ export default function RandomChatWidget() {
   const [remoteVideoEnabled, setRemoteVideoEnabled] = useState(false);
   const [remoteAudioEnabled, setRemoteAudioEnabled] = useState(false);
   const [showChat, setShowChat] = useState(true);
+  const [localVideoEnlarged, setLocalVideoEnlarged] = useState(false);
+  
+  // Face filters state
+  const [activeFilter, setActiveFilter] = useState<'none' | 'blur' | 'grayscale' | 'sepia' | 'vintage' | 'warm'>('none');
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   // Refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -94,6 +108,8 @@ export default function RandomChatWidget() {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const filterCanvasRef = useRef<HTMLCanvasElement>(null);
+  const filterProcessingRef = useRef<number | null>(null);
 
   // WebRTC Configuration
   const rtcConfiguration: RTCConfiguration = {
@@ -331,6 +347,18 @@ export default function RandomChatWidget() {
       setPartner(data.partner);
       setStatus('connecting');
       setMessages([]);
+      
+      // Add to history when a new match is found (not from previous)
+      setChatHistory(prev => {
+        // Only add if this is a new forward connection
+        const newHistory = [...prev];
+        newHistory.push({
+          partnerId: data.partner.id,
+          partnerUsername: data.partner.username
+        });
+        return newHistory;
+      });
+      setCurrentHistoryIndex(prev => prev + 1);
 
       // Initialize media and start call
       await initializeMedia();
@@ -531,6 +559,28 @@ export default function RandomChatWidget() {
     setStatus('searching');
   }, [socket, sessionId, cleanupConnection]);
 
+  // Previous match
+  const previousMatch = useCallback(() => {
+    if (!socket || currentHistoryIndex <= 0) return;
+    
+    // Get the previous partner from history
+    const previousIndex = currentHistoryIndex - 1;
+    const previousPartner = chatHistory[previousIndex];
+    
+    if (!previousPartner) return;
+    
+    console.log(`⏮️ Requesting previous match: ${previousPartner.partnerUsername}`);
+    
+    // Emit event to reconnect with previous partner
+    socket.emit('random_chat_previous', {
+      partnerId: previousPartner.partnerId
+    });
+    
+    cleanupConnection();
+    setStatus('searching');
+    setCurrentHistoryIndex(previousIndex);
+  }, [socket, currentHistoryIndex, chatHistory, cleanupConnection]);
+
   // Send message
   const sendMessage = useCallback(() => {
     if (!socket || !sessionId || !newMessage.trim()) return;
@@ -592,6 +642,97 @@ export default function RandomChatWidget() {
       }
     }
   }, []);
+
+  // Apply video filter
+  const applyVideoFilter = useCallback(() => {
+    const canvas = filterCanvasRef.current;
+    const video = localVideoRef.current;
+    
+    if (!canvas || !video || !videoEnabled) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Set canvas size to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw video frame to canvas
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Apply filter based on activeFilter
+    switch (activeFilter) {
+      case 'blur':
+        ctx.filter = 'blur(10px)';
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.filter = 'none';
+        break;
+        
+      case 'grayscale':
+        ctx.filter = 'grayscale(100%)';
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.filter = 'none';
+        break;
+        
+      case 'sepia':
+        ctx.filter = 'sepia(100%)';
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.filter = 'none';
+        break;
+        
+      case 'vintage':
+        ctx.filter = 'sepia(50%) contrast(120%) brightness(90%)';
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.filter = 'none';
+        break;
+        
+      case 'warm':
+        // Draw image first
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Apply warm overlay
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          data[i] = Math.min(255, data[i] * 1.1); // Increase red
+          data[i + 2] = data[i + 2] * 0.9; // Decrease blue
+        }
+        ctx.putImageData(imageData, 0, 0);
+        break;
+        
+      case 'none':
+      default:
+        // No filter
+        break;
+    }
+    
+    // Continue processing
+    filterProcessingRef.current = requestAnimationFrame(applyVideoFilter);
+  }, [activeFilter, videoEnabled]);
+
+  // Start/stop filter processing when filter changes
+  useEffect(() => {
+    if (activeFilter !== 'none' && videoEnabled) {
+      // Start processing
+      applyVideoFilter();
+    } else {
+      // Stop processing
+      if (filterProcessingRef.current) {
+        cancelAnimationFrame(filterProcessingRef.current);
+        filterProcessingRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (filterProcessingRef.current) {
+        cancelAnimationFrame(filterProcessingRef.current);
+      }
+    };
+  }, [activeFilter, videoEnabled, applyVideoFilter]);
+
+  // Toggle video size
+  const toggleVideoSize = useCallback(() => {
+    setLocalVideoEnlarged(!localVideoEnlarged);
+  }, [localVideoEnlarged]);
 
   // Exit to home
   const exitToHome = useCallback(() => {
@@ -663,6 +804,15 @@ export default function RandomChatWidget() {
               <Button variant="outline" size="sm" onClick={skipMatch}>
                 <SkipForward className="h-4 w-4 mr-2" />
                 Skip
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={previousMatch}
+                disabled={currentHistoryIndex <= 0}
+              >
+                <SkipBack className="h-4 w-4 mr-2" />
+                Previous
               </Button>
               <Button variant="outline" size="sm" onClick={nextMatch}>
                 Next
@@ -748,20 +898,62 @@ export default function RandomChatWidget() {
             className="w-full h-full object-contain"
           />
 
-          {/* Local Video (Picture-in-Picture) */}
-          <div className="absolute top-4 right-4 w-48 h-36 bg-gray-900 rounded-lg overflow-hidden shadow-xl border-2 border-gray-700">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover"
-            />
-            {!videoEnabled && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                <VideoOff className="h-8 w-8 text-gray-400" />
-              </div>
-            )}
+          {/* Local Video (Picture-in-Picture or Enlarged) */}
+          <div className={`absolute ${
+            localVideoEnlarged 
+              ? 'inset-0 z-10' 
+              : 'top-4 right-4 w-48 h-36 z-20'
+          } bg-gray-900 rounded-lg overflow-hidden shadow-xl border-2 border-gray-700 transition-all duration-300`}>
+            <div className="relative w-full h-full">
+              {/* Video element (hidden when filter is active) */}
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover ${activeFilter !== 'none' ? 'hidden' : ''}`}
+              />
+              
+              {/* Canvas for filtered video */}
+              <canvas
+                ref={filterCanvasRef}
+                className={`w-full h-full object-cover ${activeFilter === 'none' ? 'hidden' : ''}`}
+              />
+              
+              {!videoEnabled && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                  <VideoOff className="h-8 w-8 text-gray-400" />
+                </div>
+              )}
+              
+              {/* Video Controls Overlay (on enlarged view) */}
+              {localVideoEnlarged && (
+                <div className="absolute top-4 right-4 flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={toggleVideoSize}
+                    className="rounded-full"
+                  >
+                    <Minimize2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              
+              {/* Enlarge button (on small view) */}
+              {!localVideoEnlarged && (status === 'connecting' || status === 'connected') && (
+                <div className="absolute bottom-2 right-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={toggleVideoSize}
+                    className="rounded-full w-8 h-8 p-0"
+                  >
+                    <Maximize2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Status Overlay */}
@@ -826,6 +1018,93 @@ export default function RandomChatWidget() {
               >
                 <MessageSquare className="h-6 w-6" />
               </Button>
+              
+              {/* Filter Menu Button */}
+              <div className="relative">
+                <Button
+                  size="lg"
+                  variant={activeFilter !== 'none' ? 'default' : 'outline'}
+                  onClick={() => setShowFilterMenu(!showFilterMenu)}
+                  className="rounded-full w-14 h-14"
+                >
+                  <Sparkles className="h-6 w-6" />
+                </Button>
+                
+                {/* Filter Dropdown Menu */}
+                {showFilterMenu && (
+                  <div className="absolute bottom-16 left-0 bg-gray-800 rounded-lg shadow-xl p-2 min-w-[200px] border border-gray-700">
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => {
+                          setActiveFilter('none');
+                          setShowFilterMenu(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white ${
+                          activeFilter === 'none' ? 'bg-gray-700' : ''
+                        }`}
+                      >
+                        No Filter
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveFilter('blur');
+                          setShowFilterMenu(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white flex items-center gap-2 ${
+                          activeFilter === 'blur' ? 'bg-gray-700' : ''
+                        }`}
+                      >
+                        <Eye className="h-4 w-4" />
+                        Blur Face
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveFilter('grayscale');
+                          setShowFilterMenu(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white ${
+                          activeFilter === 'grayscale' ? 'bg-gray-700' : ''
+                        }`}
+                      >
+                        Grayscale
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveFilter('sepia');
+                          setShowFilterMenu(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white ${
+                          activeFilter === 'sepia' ? 'bg-gray-700' : ''
+                        }`}
+                      >
+                        Sepia
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveFilter('vintage');
+                          setShowFilterMenu(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white ${
+                          activeFilter === 'vintage' ? 'bg-gray-700' : ''
+                        }`}
+                      >
+                        Vintage
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveFilter('warm');
+                          setShowFilterMenu(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white ${
+                          activeFilter === 'warm' ? 'bg-gray-700' : ''
+                        }`}
+                      >
+                        Warm Tone
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

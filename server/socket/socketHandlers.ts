@@ -1072,6 +1072,129 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
       }
     });
 
+    // Previous - reconnect with previous match
+    socket.on('random_chat_previous', async (data: { partnerId: string }) => {
+      if (!socket.userId) return;
+      
+      try {
+        const { partnerId } = data;
+        console.log(`⏮️ User ${socket.userId} requesting previous match with ${partnerId}`);
+        
+        // Clean up current session first
+        const currentSessionId = usersInRandomChat.get(socket.userId);
+        if (currentSessionId) {
+          const currentSession = randomChatActiveSessions.get(currentSessionId);
+          if (currentSession) {
+            const otherUserId = currentSession.user1Id === socket.userId ? currentSession.user2Id : currentSession.user1Id;
+            const otherUserSocketId = currentSession.user1Id === socket.userId ? currentSession.user2SocketId : currentSession.user1SocketId;
+            
+            randomChatActiveSessions.delete(currentSessionId);
+            usersInRandomChat.delete(socket.userId);
+            usersInRandomChat.delete(otherUserId);
+            
+            const { randomChatService } = await import('../services/randomChat.service');
+            await randomChatService.endSession(currentSessionId);
+            
+            io.to(otherUserSocketId).emit('random_chat_partner_disconnected');
+          }
+        }
+        
+        // Check if the requested partner is online and available
+        if (!connectedUsers.has(partnerId)) {
+          socket.emit('random_chat_error', { 
+            message: 'Previous user is no longer available. Finding a new match...' 
+          });
+          // Find a new random match instead
+          await findRandomChatMatch(io, socket.userId);
+          return;
+        }
+        
+        // Check if partner is already in a chat
+        if (usersInRandomChat.has(partnerId)) {
+          socket.emit('random_chat_error', { 
+            message: 'Previous user is currently in another chat. Finding a new match...' 
+          });
+          // Find a new random match instead
+          await findRandomChatMatch(io, socket.userId);
+          return;
+        }
+        
+        // Get partner's details
+        const partnerSocketId = Array.from(connectedUsers.entries()).find(([id]) => id === partnerId)?.[1];
+        if (!partnerSocketId) {
+          socket.emit('random_chat_error', { 
+            message: 'Could not connect to previous user. Finding a new match...' 
+          });
+          await findRandomChatMatch(io, socket.userId);
+          return;
+        }
+        
+        // Get user profiles
+        const { userService } = await import('../services/user.service');
+        const currentUser = await userService.getUserById(socket.userId);
+        const partnerUser = await userService.getUserById(partnerId);
+        
+        if (!currentUser || !partnerUser) {
+          socket.emit('random_chat_error', { message: 'User not found' });
+          return;
+        }
+        
+        // Create new session
+        const { randomChatService } = await import('../services/randomChat.service');
+        const session = await randomChatService.createSession(socket.userId, partnerId);
+        
+        // Store session in memory
+        randomChatActiveSessions.set(session.sessionId, {
+          sessionId: session.sessionId,
+          user1Id: socket.userId,
+          user2Id: partnerId,
+          user1SocketId: socket.id,
+          user2SocketId: partnerSocketId,
+          status: 'connecting',
+          startedAt: new Date()
+        });
+        
+        usersInRandomChat.set(socket.userId, session.sessionId);
+        usersInRandomChat.set(partnerId, session.sessionId);
+        
+        // Notify both users
+        socket.emit('random_chat_match_found', {
+          sessionId: session.sessionId,
+          partner: {
+            id: partnerUser._id.toString(),
+            username: partnerUser.username,
+            profile: {
+              profilePicture: partnerUser.profilePicture,
+              gender: partnerUser.gender || 'not specified',
+              location: partnerUser.location || {}
+            }
+          }
+        });
+        
+        io.to(partnerSocketId).emit('random_chat_match_found', {
+          sessionId: session.sessionId,
+          partner: {
+            id: currentUser._id.toString(),
+            username: currentUser.username,
+            profile: {
+              profilePicture: currentUser.profilePicture,
+              gender: currentUser.gender || 'not specified',
+              location: currentUser.location || {}
+            }
+          }
+        });
+        
+        console.log(`✅ Reconnected users ${socket.userId} and ${partnerId}`);
+        
+      } catch (error) {
+        console.error('❌ Error reconnecting to previous match:', error);
+        socket.emit('random_chat_error', { 
+          message: 'Failed to reconnect. Finding a new match...' 
+        });
+        await findRandomChatMatch(io, socket.userId);
+      }
+    });
+
     // Exit random chat completely
     socket.on('random_chat_exit', async () => {
       if (!socket.userId) return;

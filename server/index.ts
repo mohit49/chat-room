@@ -74,16 +74,17 @@ const io = new SocketIOServer(server, {
   pingInterval: 25000
 });
 
-// Initialize database connection
-database.connect();
-
-// Seed location data after database connection
+// Initialize database connection and seed data
 (async () => {
   try {
+    // Wait for database connection to complete
+    await database.connect();
+    
+    // Seed location data after database connection is established
     const { locationService } = await import('./services/location.service');
     await locationService.seedLocations();
   } catch (error) {
-    console.error('Error seeding location data:', error);
+    console.error('Error initializing database or seeding location data:', error);
   }
 })();
 
