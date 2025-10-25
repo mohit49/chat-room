@@ -42,6 +42,7 @@ export interface Location {
   area?: string;
   city?: string;
   state?: string;
+  country?: string;
   isVisible?: boolean; // Privacy control - if false, location won't be shown in app
 }
 
@@ -107,6 +108,70 @@ export interface UpdateLocationRequest {
   area?: string;
   city?: string;
   state?: string;
+  country?: string;
   isVisible?: boolean;
 }
 
+// Random Connect Types
+export interface RandomChatSession {
+  id: string;
+  user1Id: string;
+  user2Id: string;
+  user1: RandomChatUser;
+  user2: RandomChatUser;
+  status: 'connecting' | 'connected' | 'disconnected';
+  startedAt: Date;
+  endedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RandomChatUser {
+  id: string;
+  username: string;
+  profile: {
+    profilePicture?: ProfilePicture;
+    gender: Gender;
+    location: {
+      city?: string;
+      state?: string;
+      country?: string;
+    };
+  };
+}
+
+export interface RandomChatMessage {
+  id: string;
+  sessionId: string;
+  senderId: string;
+  senderName: string;
+  message: string;
+  messageType: 'text' | 'image' | 'audio';
+  imageUrl?: string;
+  audioUrl?: string;
+  timestamp: Date;
+}
+
+export interface RandomChatFilter {
+  gender?: Gender;
+  country?: string;
+  state?: string;
+  city?: string;
+}
+
+export interface RandomChatAvailableUser {
+  id: string;
+  socketId: string;
+  username: string;
+  profile: {
+    profilePicture?: ProfilePicture;
+    gender: Gender;
+    location: {
+      city?: string;
+      state?: string;
+      country?: string;
+    };
+  };
+  filters?: RandomChatFilter;
+  joinedAt: Date;
+}

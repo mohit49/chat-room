@@ -20,6 +20,8 @@ import notificationRoutesNew from './routes/notification.routes';
 import profilePictureRoutes from './routes/profilePicture.routes';
 import pushNotificationRoutes from './routes/pushNotification.routes';
 import instantChatRoutes from './routes/instantChat.routes';
+import randomChatRoutes from './routes/randomChat.routes';
+import locationRoutes from './routes/location.routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { setupSocketHandlers, connectedUsers } from './socket/socketHandlers';
 import socketService from './services/socket.service';
@@ -74,6 +76,16 @@ const io = new SocketIOServer(server, {
 
 // Initialize database connection
 database.connect();
+
+// Seed location data after database connection
+(async () => {
+  try {
+    const { locationService } = await import('./services/location.service');
+    await locationService.seedLocations();
+  } catch (error) {
+    console.error('Error seeding location data:', error);
+  }
+})();
 
 // Middleware
 app.use(cors(config.cors));
@@ -319,7 +331,9 @@ app.use('/api/notifications/push', pushNotificationRoutes);  // Must be before /
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/chat/direct-message', directMessageRoutes);  // Must be before /api/chat
 app.use('/api/chat/instant', instantChatRoutes);  // Instant chat routes
+app.use('/api/chat/random', randomChatRoutes);  // Random chat routes
 app.use('/api/chat', chatRoutes);
+app.use('/api/location', locationRoutes);  // Location routes
 
 // Setup Socket.IO handlers
 setupSocketHandlers(io);

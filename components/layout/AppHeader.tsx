@@ -247,10 +247,10 @@ export default function AppHeader({
       </div>
 
       {/* Mobile Navigation Row */}
-      <div className="lg:hidden flex items-center justify-between">
+      <div className="lg:hidden flex items-center justify-between w-full">
         {/* Mobile Navigation Menu - Only show if profile is complete */}
         {showNavigation && isComplete && (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 w-full">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

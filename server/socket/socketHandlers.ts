@@ -35,6 +35,29 @@ export const openDirectMessageChats = new Map<string, Set<string>>(); // userId 
 // Store disconnect timers for grace period
 export const disconnectTimers = new Map<string, NodeJS.Timeout>(); // userId -> timeout
 
+// Random Chat State Management
+export const randomChatWaitingQueue = new Map<string, {
+  userId: string;
+  socketId: string;
+  username: string;
+  profile: any;
+  filters?: any;
+  joinedAt: Date;
+}>(); // userId -> waiting user info
+
+export const randomChatActiveSessions = new Map<string, {
+  sessionId: string;
+  user1Id: string;
+  user2Id: string;
+  user1SocketId: string;
+  user2SocketId: string;
+  status: 'connecting' | 'connected';
+  startedAt: Date;
+}>(); // sessionId -> session info
+
+// Track which users are in active random chat
+export const usersInRandomChat = new Map<string, string>(); // userId -> sessionId
+
 export const setupSocketHandlers = (io: SocketIOServer) => {
   console.log('🔌 Setting up Socket.IO handlers');
   
@@ -889,12 +912,391 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
     // End Instant Chat Handlers
     // ====================
 
+    // ====================
+    // Random Chat Handlers
+    // ====================
+
+    // Join random chat queue
+    socket.on('random_chat_join_queue', async (data: { 
+      filters?: { gender?: string; country?: string; state?: string; city?: string } 
+    }) => {
+      if (!socket.userId) return;
+      
+      try {
+        console.log(`🎲 User ${socket.userId} joining random chat queue with filters:`, data.filters);
+        
+        // Check if user is already in active session
+        const existingSession = usersInRandomChat.get(socket.userId);
+        if (existingSession) {
+          console.log(`⚠️ User ${socket.userId} already in active session ${existingSession}`);
+          socket.emit('random_chat_error', { 
+            error: 'You are already in an active random chat session' 
+          });
+          return;
+        }
+        
+        // Get user details
+        const user = await User.findById(socket.userId).select('username mobileNumber profile').lean();
+        if (!user) {
+          socket.emit('random_chat_error', { error: 'User not found' });
+          return;
+        }
+        
+        // Add to waiting queue
+        randomChatWaitingQueue.set(socket.userId, {
+          userId: socket.userId,
+          socketId: socket.id,
+          username: user.username || user.mobileNumber,
+          profile: {
+            profilePicture: user.profile?.profilePicture,
+            gender: user.profile?.gender,
+            location: {
+              city: user.profile?.location?.city,
+              state: user.profile?.location?.state,
+              country: user.profile?.location?.country
+            }
+          },
+          filters: data.filters,
+          joinedAt: new Date()
+        });
+        
+        console.log(`✅ User ${socket.userId} added to random chat queue. Queue size: ${randomChatWaitingQueue.size}`);
+        
+        // Emit searching status
+        socket.emit('random_chat_searching');
+        
+        // Try to find a match
+        await findRandomChatMatch(io, socket.userId);
+        
+      } catch (error) {
+        console.error('❌ Error joining random chat queue:', error);
+        socket.emit('random_chat_error', { error: 'Failed to join random chat queue' });
+      }
+    });
+
+    // Leave random chat queue
+    socket.on('random_chat_leave_queue', () => {
+      if (!socket.userId) return;
+      
+      randomChatWaitingQueue.delete(socket.userId);
+      console.log(`🎲 User ${socket.userId} left random chat queue. Queue size: ${randomChatWaitingQueue.size}`);
+      
+      socket.emit('random_chat_queue_left');
+    });
+
+    // Skip current match attempt (during connecting phase)
+    socket.on('random_chat_skip', async () => {
+      if (!socket.userId) return;
+      
+      try {
+        const sessionId = usersInRandomChat.get(socket.userId);
+        if (!sessionId) return;
+        
+        const session = randomChatActiveSessions.get(sessionId);
+        if (!session) return;
+        
+        console.log(`⏭️ User ${socket.userId} skipping match in session ${sessionId}`);
+        
+        // Get other user ID
+        const otherUserId = session.user1Id === socket.userId ? session.user2Id : session.user1Id;
+        const otherUserSocketId = session.user1Id === socket.userId ? session.user2SocketId : session.user1SocketId;
+        
+        // Clean up session
+        randomChatActiveSessions.delete(sessionId);
+        usersInRandomChat.delete(socket.userId);
+        usersInRandomChat.delete(otherUserId);
+        
+        // Mark session as disconnected in database
+        const { randomChatService } = await import('../services/randomChat.service');
+        await randomChatService.endSession(sessionId);
+        
+        // Notify both users
+        socket.emit('random_chat_skipped');
+        io.to(otherUserSocketId).emit('random_chat_partner_skipped');
+        
+        // Put both users back in queue if they haven't left
+        if (connectedUsers.has(socket.userId)) {
+          await findRandomChatMatch(io, socket.userId);
+        }
+        if (connectedUsers.has(otherUserId)) {
+          await findRandomChatMatch(io, otherUserId);
+        }
+        
+      } catch (error) {
+        console.error('❌ Error skipping random chat:', error);
+      }
+    });
+
+    // Next - disconnect and find new match
+    socket.on('random_chat_next', async () => {
+      if (!socket.userId) return;
+      
+      try {
+        const sessionId = usersInRandomChat.get(socket.userId);
+        if (!sessionId) return;
+        
+        const session = randomChatActiveSessions.get(sessionId);
+        if (!session) return;
+        
+        console.log(`⏭️ User ${socket.userId} requesting next match in session ${sessionId}`);
+        
+        // Get other user ID
+        const otherUserId = session.user1Id === socket.userId ? session.user2Id : session.user1Id;
+        const otherUserSocketId = session.user1Id === socket.userId ? session.user2SocketId : session.user1SocketId;
+        
+        // Clean up session
+        randomChatActiveSessions.delete(sessionId);
+        usersInRandomChat.delete(socket.userId);
+        usersInRandomChat.delete(otherUserId);
+        
+        // Mark session as disconnected in database
+        const { randomChatService } = await import('../services/randomChat.service');
+        await randomChatService.endSession(sessionId);
+        
+        // Notify other user that partner disconnected
+        io.to(otherUserSocketId).emit('random_chat_partner_disconnected');
+        
+        // Current user gets searching status
+        socket.emit('random_chat_searching');
+        
+        // Put current user back in queue
+        await findRandomChatMatch(io, socket.userId);
+        
+        // Put other user back in queue if they're still connected
+        if (connectedUsers.has(otherUserId)) {
+          await findRandomChatMatch(io, otherUserId);
+        }
+        
+      } catch (error) {
+        console.error('❌ Error requesting next random chat:', error);
+      }
+    });
+
+    // Exit random chat completely
+    socket.on('random_chat_exit', async () => {
+      if (!socket.userId) return;
+      
+      try {
+        console.log(`🚪 User ${socket.userId} exiting random chat`);
+        
+        // Remove from queue
+        randomChatWaitingQueue.delete(socket.userId);
+        
+        // Check if in active session
+        const sessionId = usersInRandomChat.get(socket.userId);
+        if (sessionId) {
+          const session = randomChatActiveSessions.get(sessionId);
+          if (session) {
+            // Get other user
+            const otherUserId = session.user1Id === socket.userId ? session.user2Id : session.user1Id;
+            const otherUserSocketId = session.user1Id === socket.userId ? session.user2SocketId : session.user1SocketId;
+            
+            // Clean up session
+            randomChatActiveSessions.delete(sessionId);
+            usersInRandomChat.delete(socket.userId);
+            usersInRandomChat.delete(otherUserId);
+            
+            // Mark session as disconnected in database
+            const { randomChatService } = await import('../services/randomChat.service');
+            await randomChatService.endSession(sessionId);
+            
+            // Notify other user
+            io.to(otherUserSocketId).emit('random_chat_partner_disconnected');
+          }
+        }
+        
+        socket.emit('random_chat_exited');
+        console.log(`✅ User ${socket.userId} exited random chat`);
+        
+      } catch (error) {
+        console.error('❌ Error exiting random chat:', error);
+      }
+    });
+
+    // Accept match
+    socket.on('random_chat_accept_match', async (data: { sessionId: string }) => {
+      if (!socket.userId) return;
+      
+      try {
+        const session = randomChatActiveSessions.get(data.sessionId);
+        if (!session) {
+          socket.emit('random_chat_error', { error: 'Session not found' });
+          return;
+        }
+        
+        // Update session status
+        session.status = 'connected';
+        
+        console.log(`✅ User ${socket.userId} accepted match in session ${data.sessionId}`);
+        
+        // Update database
+        const { randomChatService } = await import('../services/randomChat.service');
+        await randomChatService.updateSessionStatus(data.sessionId, 'connected');
+        
+        // Notify both users
+        const bothAccepted = true; // For now, first accept makes it connected
+        if (bothAccepted) {
+          io.to(session.user1SocketId).emit('random_chat_connected', {
+            sessionId: data.sessionId,
+            partnerId: session.user2Id
+          });
+          io.to(session.user2SocketId).emit('random_chat_connected', {
+            sessionId: data.sessionId,
+            partnerId: session.user1Id
+          });
+        }
+        
+      } catch (error) {
+        console.error('❌ Error accepting match:', error);
+      }
+    });
+
+    // Random chat message
+    socket.on('random_chat_message', async (data: {
+      sessionId: string;
+      message: string;
+      messageType?: 'text' | 'image' | 'audio';
+      imageUrl?: string;
+      audioUrl?: string;
+    }) => {
+      if (!socket.userId) return;
+      
+      try {
+        const session = randomChatActiveSessions.get(data.sessionId);
+        if (!session) return;
+        
+        // Verify user is part of session
+        if (session.user1Id !== socket.userId && session.user2Id !== socket.userId) {
+          return;
+        }
+        
+        const messageData = {
+          id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          senderId: socket.userId,
+          senderName: socket.user?.username || socket.user?.mobileNumber || 'Unknown',
+          message: data.message,
+          messageType: data.messageType || 'text',
+          imageUrl: data.imageUrl,
+          audioUrl: data.audioUrl,
+          timestamp: new Date()
+        };
+        
+        // Save to database
+        const { randomChatService } = await import('../services/randomChat.service');
+        await randomChatService.saveMessage(data.sessionId, messageData);
+        
+        // Broadcast to both users
+        io.to(session.user1SocketId).emit('random_chat_message', {
+          sessionId: data.sessionId,
+          message: messageData
+        });
+        io.to(session.user2SocketId).emit('random_chat_message', {
+          sessionId: data.sessionId,
+          message: messageData
+        });
+        
+      } catch (error) {
+        console.error('❌ Error sending random chat message:', error);
+      }
+    });
+
+    // Typing indicator
+    socket.on('random_chat_typing', (data: { sessionId: string; isTyping: boolean }) => {
+      if (!socket.userId) return;
+      
+      const session = randomChatActiveSessions.get(data.sessionId);
+      if (!session) return;
+      
+      // Send to other user
+      const otherUserSocketId = session.user1Id === socket.userId ? session.user2SocketId : session.user1SocketId;
+      io.to(otherUserSocketId).emit('random_chat_typing', {
+        sessionId: data.sessionId,
+        isTyping: data.isTyping
+      });
+    });
+
+    // WebRTC signaling for video/audio
+    socket.on('random_chat_offer', (data: { sessionId: string; offer: any }) => {
+      if (!socket.userId) return;
+      
+      const session = randomChatActiveSessions.get(data.sessionId);
+      if (!session) return;
+      
+      const otherUserSocketId = session.user1Id === socket.userId ? session.user2SocketId : session.user1SocketId;
+      io.to(otherUserSocketId).emit('random_chat_offer', {
+        sessionId: data.sessionId,
+        offer: data.offer,
+        fromUserId: socket.userId
+      });
+    });
+
+    socket.on('random_chat_answer', (data: { sessionId: string; answer: any }) => {
+      if (!socket.userId) return;
+      
+      const session = randomChatActiveSessions.get(data.sessionId);
+      if (!session) return;
+      
+      const otherUserSocketId = session.user1Id === socket.userId ? session.user2SocketId : session.user1SocketId;
+      io.to(otherUserSocketId).emit('random_chat_answer', {
+        sessionId: data.sessionId,
+        answer: data.answer,
+        fromUserId: socket.userId
+      });
+    });
+
+    socket.on('random_chat_ice_candidate', (data: { sessionId: string; candidate: any }) => {
+      if (!socket.userId) return;
+      
+      const session = randomChatActiveSessions.get(data.sessionId);
+      if (!session) return;
+      
+      const otherUserSocketId = session.user1Id === socket.userId ? session.user2SocketId : session.user1SocketId;
+      io.to(otherUserSocketId).emit('random_chat_ice_candidate', {
+        sessionId: data.sessionId,
+        candidate: data.candidate,
+        fromUserId: socket.userId
+      });
+    });
+
+    // ====================
+    // End Random Chat Handlers
+    // ====================
+
     // Handle disconnect
     socket.on('disconnect', async () => {
       console.log(`🔌 User ${socket.userId} disconnected`);
       if (socket.userId) {
         // Clean up open direct message chats
         openDirectMessageChats.delete(socket.userId);
+        
+        // Clean up random chat if user was in session or queue
+        randomChatWaitingQueue.delete(socket.userId);
+        const randomSessionId = usersInRandomChat.get(socket.userId);
+        if (randomSessionId) {
+          const session = randomChatActiveSessions.get(randomSessionId);
+          if (session) {
+            // Get other user
+            const otherUserId = session.user1Id === socket.userId ? session.user2Id : session.user1Id;
+            const otherUserSocketId = session.user1Id === socket.userId ? session.user2SocketId : session.user1SocketId;
+            
+            // Clean up session
+            randomChatActiveSessions.delete(randomSessionId);
+            usersInRandomChat.delete(socket.userId);
+            usersInRandomChat.delete(otherUserId);
+            
+            // Mark session as disconnected in database
+            try {
+              const { randomChatService } = await import('../services/randomChat.service');
+              await randomChatService.endSession(randomSessionId);
+            } catch (error) {
+              console.error('Error ending random chat session:', error);
+            }
+            
+            // Notify other user
+            io.to(otherUserSocketId).emit('random_chat_partner_disconnected');
+            console.log(`🎲 Cleaned up random chat session ${randomSessionId} due to disconnect`);
+          }
+        }
         
         // Only remove from connectedUsers if this is the current socket for this user
         const currentSocketId = connectedUsers.get(socket.userId);
@@ -1058,3 +1460,130 @@ export const sendRoomMembersStatus = async (io: SocketIOServer, roomId: string) 
     console.error('❌ Error sending room members status:', error);
   }
 };
+
+// Helper function to find a random chat match
+async function findRandomChatMatch(io: SocketIOServer, userId: string) {
+  try {
+    const currentUser = randomChatWaitingQueue.get(userId);
+    if (!currentUser) {
+      console.log(`⚠️ User ${userId} not in waiting queue`);
+      return;
+    }
+    
+    console.log(`🔍 Finding match for user ${userId} with filters:`, currentUser.filters);
+    
+    // Find potential matches
+    const potentialMatches: any[] = [];
+    
+    for (const [candidateId, candidate] of randomChatWaitingQueue.entries()) {
+      // Skip self
+      if (candidateId === userId) continue;
+      
+      // Skip users already in active sessions
+      if (usersInRandomChat.has(candidateId)) continue;
+      
+      // Check if candidate matches current user's filters
+      let matchesFilters = true;
+      
+      if (currentUser.filters) {
+        if (currentUser.filters.gender && currentUser.filters.gender !== '' && 
+            candidate.profile.gender !== currentUser.filters.gender) {
+          matchesFilters = false;
+        }
+        if (currentUser.filters.country && 
+            candidate.profile.location.country !== currentUser.filters.country) {
+          matchesFilters = false;
+        }
+        if (currentUser.filters.state && 
+            candidate.profile.location.state !== currentUser.filters.state) {
+          matchesFilters = false;
+        }
+        if (currentUser.filters.city && 
+            candidate.profile.location.city !== currentUser.filters.city) {
+          matchesFilters = false;
+        }
+      }
+      
+      // Check if current user matches candidate's filters
+      if (candidate.filters) {
+        if (candidate.filters.gender && candidate.filters.gender !== '' && 
+            currentUser.profile.gender !== candidate.filters.gender) {
+          matchesFilters = false;
+        }
+        if (candidate.filters.country && 
+            currentUser.profile.location.country !== candidate.filters.country) {
+          matchesFilters = false;
+        }
+        if (candidate.filters.state && 
+            currentUser.profile.location.state !== candidate.filters.state) {
+          matchesFilters = false;
+        }
+        if (candidate.filters.city && 
+            currentUser.profile.location.city !== candidate.filters.city) {
+          matchesFilters = false;
+        }
+      }
+      
+      if (matchesFilters) {
+        potentialMatches.push(candidate);
+      }
+    }
+    
+    console.log(`✅ Found ${potentialMatches.length} potential matches for user ${userId}`);
+    
+    if (potentialMatches.length === 0) {
+      console.log(`⏳ No matches found for user ${userId}, keeping in queue`);
+      return;
+    }
+    
+    // Pick a random match
+    const match = potentialMatches[Math.floor(Math.random() * potentialMatches.length)];
+    
+    // Create session
+    const { randomChatService } = await import('../services/randomChat.service');
+    const session = await randomChatService.createSession(userId, match.userId);
+    
+    // Remove both users from waiting queue
+    randomChatWaitingQueue.delete(userId);
+    randomChatWaitingQueue.delete(match.userId);
+    
+    // Add to active sessions
+    const sessionInfo = {
+      sessionId: session.sessionId,
+      user1Id: userId,
+      user2Id: match.userId,
+      user1SocketId: currentUser.socketId,
+      user2SocketId: match.socketId,
+      status: 'connecting' as const,
+      startedAt: new Date()
+    };
+    
+    randomChatActiveSessions.set(session.sessionId, sessionInfo);
+    usersInRandomChat.set(userId, session.sessionId);
+    usersInRandomChat.set(match.userId, session.sessionId);
+    
+    console.log(`🎉 Match found! Session ${session.sessionId}: ${userId} <-> ${match.userId}`);
+    
+    // Notify both users
+    io.to(currentUser.socketId).emit('random_chat_match_found', {
+      sessionId: session.sessionId,
+      partner: {
+        id: match.userId,
+        username: match.username,
+        profile: match.profile
+      }
+    });
+    
+    io.to(match.socketId).emit('random_chat_match_found', {
+      sessionId: session.sessionId,
+      partner: {
+        id: userId,
+        username: currentUser.username,
+        profile: currentUser.profile
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error finding random chat match:', error);
+  }
+}

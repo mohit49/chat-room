@@ -21,6 +21,7 @@ import { PWAManager } from "@/components/pwa/PWAManager";
 import { DynamicThemeColor } from "@/components/pwa/DynamicThemeColor";
 import { ClientOnly } from "@/components/ui/ClientOnly";
 import { NoSSR } from "@/components/ui/NoSSR";
+import { HydrationErrorSuppressor } from "@/components/ui/HydrationErrorSuppressor";
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
@@ -100,6 +101,7 @@ export default function RootLayout({
           }}
         />
         <NoSSR>
+          <HydrationErrorSuppressor />
           <AuthProvider>
             <GlobalAuthChecker>
               <SocketProvider>

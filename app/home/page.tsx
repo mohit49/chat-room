@@ -377,6 +377,7 @@ export default function HomePage() {
           onCreateRoom={() => setShowCreateModal(true)}
           onExploreRooms={() => router.push('/rooms')}
           onViewNotifications={() => router.push('/notifications')}
+          onRandomConnect={() => router.push('/random-connect')}
         />
 
         {/* Online Users Carousel */}

@@ -10,7 +10,7 @@ import {
   CarouselPrevious,
 } from '@/components/ui/carousel';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Users, Zap, Crown, Gift, Star } from 'lucide-react';
+import { MessageCircle, Users, Zap, Crown, Gift, Star, Video } from 'lucide-react';
 import Autoplay from 'embla-carousel-autoplay';
 
 interface BannerSlide {
@@ -28,12 +28,14 @@ interface BannerCarouselProps {
   onCreateRoom?: () => void;
   onExploreRooms?: () => void;
   onViewNotifications?: () => void;
+  onRandomConnect?: () => void;
 }
 
 export function BannerCarousel({ 
   onCreateRoom, 
   onExploreRooms,
-  onViewNotifications 
+  onViewNotifications,
+  onRandomConnect
 }: BannerCarouselProps) {
   const [api, setApi] = React.useState<any>();
   const [current, setCurrent] = React.useState(0);
@@ -59,6 +61,15 @@ export function BannerCarousel({
   const slides: BannerSlide[] = [
     {
       id: '1',
+      title: 'Random Connect',
+      description: 'Meet random people online! Video chat, voice call, and text with strangers from around the world.',
+      buttonText: 'Start Random Chat',
+      buttonAction: onRandomConnect || (() => {}),
+      icon: Video,
+      gradient: 'from-indigo-500 via-purple-500 to-pink-500',
+    },
+    {
+      id: '2',
       title: 'Create Your Own Room',
       description: 'Start conversations, build communities, and connect with people who share your interests.',
       buttonText: 'Create Room',
@@ -67,7 +78,7 @@ export function BannerCarousel({
       gradient: 'from-blue-500 via-purple-500 to-pink-500',
     },
     {
-      id: '2',
+      id: '3',
       title: 'Connect Instantly',
       description: 'Send messages, share moments, and stay connected with your friends in real-time.',
       buttonText: 'Start Chatting',
@@ -76,7 +87,7 @@ export function BannerCarousel({
       gradient: 'from-green-500 via-teal-500 to-blue-500',
     },
     {
-      id: '3',
+      id: '4',
       title: 'Discover New Features',
       description: 'Voice broadcasting, push notifications, and more exciting features to explore.',
       buttonText: 'Explore',
@@ -85,7 +96,7 @@ export function BannerCarousel({
       gradient: 'from-orange-500 via-red-500 to-pink-500',
     },
     {
-      id: '4',
+      id: '5',
       title: 'Premium Coming Soon',
       description: 'Unlock exclusive features, custom themes, and priority support with Premium.',
       buttonText: 'Learn More',
