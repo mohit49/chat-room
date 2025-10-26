@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useSocket } from '@/lib/contexts/SocketContext';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getCountries, getCitiesByCountry, Country, City } from '@/lib/api/location';
+import { FaceFilter, FilterType } from './FaceFilter';
 
 interface Message {
   id: string;
@@ -52,7 +54,7 @@ interface Partner {
       state?: string;
       country?: string;
     };
-  };
+  }; 
 }
 
 type ConnectionStatus = 'idle' | 'searching' | 'connecting' | 'connected' | 'disconnected';
@@ -98,8 +100,9 @@ export default function RandomChatWidget() {
   const [localVideoEnlarged, setLocalVideoEnlarged] = useState(false);
   
   // Face filters state
-  const [activeFilter, setActiveFilter] = useState<'none' | 'blur' | 'grayscale' | 'sepia' | 'vintage' | 'warm'>('none');
+  const [activeFilter, setActiveFilter] = useState<FilterType>('none');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [filterEnabled, setFilterEnabled] = useState(false);
 
   // Refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -110,6 +113,7 @@ export default function RandomChatWidget() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const filterCanvasRef = useRef<HTMLCanvasElement>(null);
   const filterProcessingRef = useRef<number | null>(null);
+  const filteredStreamRef = useRef<MediaStream | null>(null);
 
   // WebRTC Configuration
   const rtcConfiguration: RTCConfiguration = {
@@ -262,7 +266,14 @@ export default function RandomChatWidget() {
         hasAudio,
         videoTracks: stream.getVideoTracks().length,
         audioTracks: stream.getAudioTracks().length,
-        videoSettings: stream.getVideoTracks()[0]?.getSettings()
+        videoSettings: stream.getVideoTracks()[0]?.getSettings(),
+        audioTrackDetails: stream.getAudioTracks().map(t => ({
+          id: t.id,
+          label: t.label,
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState
+        }))
       });
 
       localStreamRef.current = stream;
@@ -318,15 +329,25 @@ export default function RandomChatWidget() {
 
   // Create WebRTC peer connection
   const createPeerConnection = useCallback(() => {
+    console.log('🆕 Creating new RTCPeerConnection...');
     const pc = new RTCPeerConnection(rtcConfiguration);
+    console.log('✅ RTCPeerConnection created:', {
+      connectionState: pc.connectionState,
+      iceConnectionState: pc.iceConnectionState,
+      signalingState: pc.signalingState
+    });
 
     // Add local stream tracks with proper sender configuration
-    if (localStreamRef.current) {
+    // Use filtered stream if filter is enabled, otherwise use original stream
+    const streamToSend = (filterEnabled && filteredStreamRef.current) ? filteredStreamRef.current : localStreamRef.current;
+    
+    if (streamToSend) {
       console.log('➕ Adding local tracks to peer connection...');
       console.log('📊 Local stream details:', {
-        streamId: localStreamRef.current.id,
-        streamActive: localStreamRef.current.active,
-        tracks: localStreamRef.current.getTracks().map(t => ({
+        streamId: streamToSend.id,
+        streamActive: streamToSend.active,
+        isFiltered: filterEnabled && filteredStreamRef.current === streamToSend,
+        tracks: streamToSend.getTracks().map(t => ({
           kind: t.kind,
           id: t.id,
           enabled: t.enabled,
@@ -334,8 +355,8 @@ export default function RandomChatWidget() {
         }))
       });
       
-      localStreamRef.current.getTracks().forEach(track => {
-        const sender = pc.addTrack(track, localStreamRef.current!);
+      streamToSend.getTracks().forEach(track => {
+        const sender = pc.addTrack(track, streamToSend!);
         console.log(`✅ Added ${track.kind} track:`, {
           trackId: track.id,
           trackEnabled: track.enabled,
@@ -374,32 +395,115 @@ export default function RandomChatWidget() {
         streamTracks: event.streams[0]?.getTracks().map(t => ({
           kind: t.kind,
           id: t.id,
-          enabled: t.enabled
+          enabled: t.enabled,
+          muted: t.muted
         }))
       });
       
       if (remoteVideoRef.current && event.streams[0]) {
         console.log('✅ Setting remote video srcObject');
+        
+        // Check if this is the first track or if we need to update
+        if (!remoteVideoRef.current.srcObject) {
         remoteVideoRef.current.srcObject = event.streams[0];
-        console.log('📺 Remote video srcObject set:', {
+          console.log('📺 Remote video srcObject set (NEW)');
+        } else {
+          // Stream already exists, just log
+          console.log('📺 Remote video srcObject already set, track added to existing stream');
+        }
+        
+        console.log('📺 Remote video element state:', {
           streamId: event.streams[0].id,
           streamActive: event.streams[0].active,
           videoElement: remoteVideoRef.current,
           videoSrc: remoteVideoRef.current.src || 'MediaStream (no URL)',
-          srcObject: remoteVideoRef.current.srcObject
+          srcObject: remoteVideoRef.current.srcObject,
+          videoElementReadyState: remoteVideoRef.current.readyState,
+          videoElementNetworkState: remoteVideoRef.current.networkState,
+          muted: remoteVideoRef.current.muted,
+          volume: remoteVideoRef.current.volume,
+          audioTracks: (remoteVideoRef.current.srcObject as MediaStream)?.getAudioTracks().length || 0,
+          videoTracks: (remoteVideoRef.current.srcObject as MediaStream)?.getVideoTracks().length || 0
         });
+        
+        // Add event listeners for debugging
+        remoteVideoRef.current.onloadedmetadata = () => {
+          console.log('🎥 Remote video metadata loaded:', {
+            videoWidth: remoteVideoRef.current?.videoWidth,
+            videoHeight: remoteVideoRef.current?.videoHeight,
+            duration: remoteVideoRef.current?.duration
+          });
+        };
+        
+        remoteVideoRef.current.oncanplay = () => {
+          console.log('▶️ Remote video can play');
+        };
+        
+        remoteVideoRef.current.onplay = () => {
+          console.log('▶️ Remote video started playing');
+        };
+        
+        remoteVideoRef.current.onerror = (e) => {
+          console.error('❌ Remote video error:', e);
+          console.error('❌ Video error details:', {
+            error: remoteVideoRef.current?.error,
+            networkState: remoteVideoRef.current?.networkState,
+            readyState: remoteVideoRef.current?.readyState
+          });
+        };
+        
         // Ensure remote video plays
         remoteVideoRef.current.play().catch(e => {
-          console.error('Error playing remote video:', e);
+          console.error('❌ Error playing remote video:', e);
+          console.error('❌ Play error details:', {
+            error: e,
+            videoElement: remoteVideoRef.current,
+            srcObject: remoteVideoRef.current?.srcObject,
+            readyState: remoteVideoRef.current?.readyState
+          });
+          
+          // Check if it's an autoplay policy issue
+          if (e.name === 'NotAllowedError') {
+            console.warn('⚠️ Autoplay blocked by browser policy. User interaction required.');
+            toast({
+              title: 'Click to Enable Audio/Video',
+              description: 'Click anywhere on the screen to enable audio and video playback.',
+              variant: 'default',
+            });
+          }
+          
           // Try again after a short delay
           setTimeout(() => {
             if (remoteVideoRef.current) {
-              remoteVideoRef.current.play().catch(console.error);
+              console.log('🔄 Retrying remote video play...');
+              remoteVideoRef.current.play().catch(retryError => {
+                console.error('❌ Retry play failed:', retryError);
+              });
             }
           }, 500);
         });
+        
+        // Ensure volume is at maximum and not muted
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.volume = 1.0;
+          remoteVideoRef.current.muted = false;
+          console.log('🔊 Remote video audio settings:', {
+            volume: remoteVideoRef.current.volume,
+            muted: remoteVideoRef.current.muted,
+            audioTracks: (remoteVideoRef.current.srcObject as MediaStream)?.getAudioTracks().map(t => ({
+              id: t.id,
+              enabled: t.enabled,
+              muted: t.muted,
+              readyState: t.readyState
+            }))
+          });
+        }
       } else {
-        console.warn('⚠️ Remote video ref or stream not available');
+        console.warn('⚠️ Remote video ref or stream not available:', {
+          hasRemoteVideoRef: !!remoteVideoRef.current,
+          hasStream: !!event.streams[0],
+          streamCount: event.streams.length
+        });
       }
 
       if (event.track.kind === 'video') {
@@ -414,10 +518,20 @@ export default function RandomChatWidget() {
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && socket && sessionId) {
+        console.log('🧊 Local ICE candidate generated:', {
+          type: event.candidate.type,
+          protocol: event.candidate.protocol,
+          address: event.candidate.address,
+          port: event.candidate.port,
+          candidate: event.candidate.candidate
+        });
         socket.emit('random_chat_ice_candidate', {
           sessionId,
           candidate: event.candidate,
         });
+        console.log('📤 ICE candidate sent to peer');
+      } else if (!event.candidate) {
+        console.log('✅ ICE gathering complete (null candidate received)');
       }
     };
 
@@ -455,12 +569,29 @@ export default function RandomChatWidget() {
     };
 
     peerConnectionRef.current = pc;
+    console.log('💾 Peer connection stored in ref:', {
+      hasRef: !!peerConnectionRef.current,
+      connectionState: peerConnectionRef.current?.connectionState
+    });
     return pc;
-  }, [socket, sessionId]);
+  }, [socket, sessionId, filterEnabled]);
 
-  // Start call (create offer)
-  const startCall = useCallback(async () => {
-    if (!socket || !sessionId) return;
+  // Start call (create offer) - with sessionId parameter
+  const startCallWithSessionId = useCallback(async (currentSessionId: string) => {
+    console.log('📞 startCallWithSessionId() called with:', {
+      hasSocket: !!socket,
+      sessionId: currentSessionId,
+      hasLocalStream: !!localStreamRef.current,
+      localStreamActive: localStreamRef.current?.active
+    });
+    
+    if (!socket || !currentSessionId) {
+      console.error('❌ startCallWithSessionId() aborted: missing socket or sessionId', {
+        socket: !!socket,
+        sessionId: currentSessionId
+      });
+      return;
+    }
 
     console.log('📞 Starting call as CALLER (creating offer)...');
     
@@ -486,40 +617,83 @@ export default function RandomChatWidget() {
       await pc.setLocalDescription(offer);
 
       socket.emit('random_chat_offer', {
-        sessionId,
+        sessionId: currentSessionId,
         offer: pc.localDescription,
       });
       console.log('📤 Offer sent to peer');
     } catch (error) {
       console.error('❌ Error creating offer:', error);
     }
-  }, [socket, sessionId, createPeerConnection]);
+  }, [socket, createPeerConnection]);
+
+  // Start call (create offer) - original function for backward compatibility
+  const startCall = useCallback(async () => {
+    if (!sessionId) {
+      console.error('❌ startCall() aborted: no sessionId in state');
+      return;
+    }
+    return startCallWithSessionId(sessionId);
+  }, [sessionId, startCallWithSessionId]);
 
   // Handle incoming offer
   const handleOffer = useCallback(async (data: { offer: RTCSessionDescriptionInit }) => {
-    if (!socket || !sessionId) return;
+    console.log('📥 handleOffer() called with:', {
+      hasSocket: !!socket,
+      sessionId,
+      hasOffer: !!data.offer,
+      offerType: data.offer?.type
+    });
+    
+    if (!socket || !sessionId) {
+      console.error('❌ Cannot handle offer: socket or sessionId missing', { socket: !!socket, sessionId });
+      return;
+    }
 
     console.log('📥 Received offer from peer - I am ANSWERER');
+    console.log('📊 Offer details:', data.offer);
     
-    // Create or reuse peer connection
-    let pc = peerConnectionRef.current;
-    if (!pc) {
-      console.log('Creating new peer connection for answerer');
-      pc = createPeerConnection();
-    } else {
-      console.log('Reusing existing peer connection');
+    // Always create a new peer connection when receiving an offer
+    // This ensures fresh state and proper track handling
+    if (peerConnectionRef.current) {
+      console.log('🧹 Closing existing peer connection before creating new one');
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
     }
     
-    // Add a small delay to ensure ontrack handler is registered
-    await new Promise(resolve => setTimeout(resolve, 100));
+    console.log('🆕 Creating new peer connection for answerer');
+    const pc = createPeerConnection();
+    console.log('✅ Peer connection created:', {
+      hasConnection: !!pc,
+      connectionState: pc?.connectionState,
+      iceConnectionState: pc?.iceConnectionState
+    });
+    
+    if (!localStreamRef.current) {
+      console.error('❌ No local stream available when answering!');
+      toast({
+        title: 'Media Error',
+        description: 'Could not access your media. Please reload the page.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    const localTracks = localStreamRef.current.getTracks();
+    console.log('📊 Local tracks before answering:', {
+      totalTracks: localTracks.length,
+      tracks: localTracks.map(t => ({ kind: t.kind, id: t.id, enabled: t.enabled, readyState: t.readyState }))
+    });
 
     try {
-      console.log('Setting remote description (offer)...');
+      console.log('📝 Setting remote description (offer)...');
       await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
       console.log('✅ Remote description set');
       
-      console.log('Creating answer...');
-      const answer = await pc.createAnswer();
+      console.log('📝 Creating answer...');
+      const answer = await pc.createAnswer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+      });
       
       // Modify SDP to limit bandwidth
       if (answer.sdp) {
@@ -541,33 +715,70 @@ export default function RandomChatWidget() {
       console.log('📊 Peer connection state after answer:', {
         connectionState: pc.connectionState,
         iceConnectionState: pc.iceConnectionState,
-        signalingState: pc.signalingState
+        signalingState: pc.signalingState,
+        localTracks: pc.getSenders().length,
+        remoteTracks: pc.getReceivers().length
       });
     } catch (error) {
       console.error('❌ Error handling offer:', error);
+      toast({
+        title: 'Connection Error',
+        description: 'Failed to establish WebRTC connection. Please try reconnecting.',
+        variant: 'destructive',
+      });
     }
-  }, [socket, sessionId, createPeerConnection]);
+  }, [socket, sessionId, createPeerConnection, toast]);
 
   // Handle incoming answer
   const handleAnswer = useCallback(async (data: { answer: RTCSessionDescriptionInit }) => {
-    if (!peerConnectionRef.current) return;
+    if (!peerConnectionRef.current) {
+      console.error('❌ Cannot handle answer: No peer connection exists');
+      return;
+    }
 
-    console.log('📥 Received answer');
+    console.log('📥 Received answer from peer');
+    console.log('📊 Answer details:', data.answer);
+    console.log('📊 Current peer connection state:', {
+      connectionState: peerConnectionRef.current.connectionState,
+      iceConnectionState: peerConnectionRef.current.iceConnectionState,
+      signalingState: peerConnectionRef.current.signalingState,
+      localTracks: peerConnectionRef.current.getSenders().length,
+      remoteTracks: peerConnectionRef.current.getReceivers().length
+    });
+    
     try {
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+      console.log('✅ Remote description (answer) set successfully');
+      console.log('📊 Updated peer connection state:', {
+        connectionState: peerConnectionRef.current.connectionState,
+        iceConnectionState: peerConnectionRef.current.iceConnectionState,
+        signalingState: peerConnectionRef.current.signalingState
+      });
     } catch (error) {
       console.error('❌ Error handling answer:', error);
+      toast({
+        title: 'Connection Error',
+        description: 'Failed to complete WebRTC connection. Please try reconnecting.',
+        variant: 'destructive',
+      });
     }
-  }, []);
+  }, [toast]);
 
   // Handle ICE candidate
   const handleIceCandidate = useCallback(async (data: { candidate: RTCIceCandidateInit }) => {
-    if (!peerConnectionRef.current) return;
+    if (!peerConnectionRef.current) {
+      console.warn('⚠️ Cannot add ICE candidate: No peer connection exists');
+      return;
+    }
 
+    console.log('🧊 Received ICE candidate:', data.candidate);
+    
     try {
       await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+      console.log('✅ ICE candidate added successfully');
     } catch (error) {
       console.error('❌ Error adding ICE candidate:', error);
+      // Don't show toast for ICE candidate errors as they're not critical
     }
   }, []);
 
@@ -580,7 +791,7 @@ export default function RandomChatWidget() {
       setStatus('searching');
     });
 
-    socket.on('random_chat_match_found', async (data: { sessionId: string; partner: Partner }) => {
+    socket.on('random_chat_match_found', async (data: { sessionId: string; partner: Partner; isInitiator?: boolean }) => {
       console.log('🎉 Match found!', data);
       setSessionId(data.sessionId);
       setPartner(data.partner);
@@ -607,10 +818,51 @@ export default function RandomChatWidget() {
         console.log('📹 Media already initialized, reusing existing stream');
       }
       
-      // Small delay to ensure both peers are ready
-      setTimeout(() => {
-        startCall();
-      }, 1000);
+      // Only the initiator starts the call to avoid both sides creating offers
+      // The backend should mark one user as the initiator
+      const myId = user?.id; // Use 'id' instead of '_id'
+      const partnerId = data.partner.id;
+      
+      // Fallback: if IDs are not available, use sessionId for deterministic initiation
+      let shouldInitiateCall = false;
+      if (myId && partnerId) {
+        shouldInitiateCall = myId < partnerId;
+      } else if (data.sessionId) {
+        // Use sessionId as fallback - take first character modulo 2
+        shouldInitiateCall = data.sessionId.charCodeAt(0) % 2 === 0;
+        console.log('⚠️ Using sessionId fallback for call initiation:', {
+          sessionId: data.sessionId,
+          firstChar: data.sessionId[0],
+          charCode: data.sessionId.charCodeAt(0),
+          shouldInitiateCall
+        });
+      }
+      
+      console.log('📊 Call initiation decision:', {
+        myId,
+        partnerId,
+        shouldInitiateCall,
+        userExists: !!user,
+        partnerExists: !!data.partner,
+        myIdExists: !!myId,
+        partnerIdExists: !!partnerId,
+        reason: shouldInitiateCall ? 'My ID is lexicographically smaller' : 'Partner will initiate'
+      });
+      
+      if (shouldInitiateCall) {
+        console.log('📞 I will initiate the call (creating offer)');
+        // Small delay to ensure both peers are ready
+        setTimeout(() => {
+          console.log('⏰ Timeout reached, calling startCall()...');
+          // Pass sessionId directly to avoid state timing issues
+          startCallWithSessionId(data.sessionId).catch(error => {
+            console.error('❌ startCall() failed:', error);
+          });
+        }, 1000);
+      } else {
+        console.log('👂 I will wait for offer from partner');
+        console.log('👂 Waiting for offer... (checking for offer handler)');
+      }
 
       toast({
         title: 'Match Found!',
@@ -684,13 +936,19 @@ export default function RandomChatWidget() {
       socket.off('random_chat_answer');
       socket.off('random_chat_ice_candidate');
     };
-  }, [socket, handleOffer, handleAnswer, handleIceCandidate, initializeMedia, startCall, toast]);
+  }, [socket, handleOffer, handleAnswer, handleIceCandidate, initializeMedia, startCallWithSessionId, toast]);
 
   // Cleanup connection
   const cleanupConnection = useCallback(() => {
     if (peerConnectionRef.current) {
+      console.log('🧹 Closing peer connection:', {
+        connectionState: peerConnectionRef.current.connectionState,
+        iceConnectionState: peerConnectionRef.current.iceConnectionState,
+        signalingState: peerConnectionRef.current.signalingState
+      });
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
+      console.log('✅ Peer connection closed and cleared');
     }
 
     if (localStreamRef.current) {
@@ -889,100 +1147,157 @@ export default function RandomChatWidget() {
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setAudioEnabled(audioTrack.enabled);
+        console.log('🔊 Audio toggled:', {
+          enabled: audioTrack.enabled,
+          trackId: audioTrack.id,
+          trackLabel: audioTrack.label,
+          trackMuted: audioTrack.muted,
+          trackReadyState: audioTrack.readyState
+        });
+      } else {
+        console.warn('⚠️ No audio track found in local stream');
       }
+    } else {
+      console.warn('⚠️ No local stream available for audio toggle');
     }
   }, []);
 
-  // Apply video filter
-  const applyVideoFilter = useCallback(() => {
-    const canvas = filterCanvasRef.current;
-    const video = localVideoRef.current;
-    
-    if (!canvas || !video || !videoEnabled) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Set canvas size to match video
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    // Draw video frame to canvas
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    // Apply filter based on activeFilter
-    switch (activeFilter) {
-      case 'blur':
-        ctx.filter = 'blur(10px)';
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.filter = 'none';
-        break;
-        
-      case 'grayscale':
-        ctx.filter = 'grayscale(100%)';
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.filter = 'none';
-        break;
-        
-      case 'sepia':
-        ctx.filter = 'sepia(100%)';
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.filter = 'none';
-        break;
-        
-      case 'vintage':
-        ctx.filter = 'sepia(50%) contrast(120%) brightness(90%)';
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.filter = 'none';
-        break;
-        
-      case 'warm':
-        // Draw image first
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        // Apply warm overlay
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        for (let i = 0; i < data.length; i += 4) {
-          data[i] = Math.min(255, data[i] * 1.1); // Increase red
-          data[i + 2] = data[i + 2] * 0.9; // Decrease blue
-        }
-        ctx.putImageData(imageData, 0, 0);
-        break;
-        
-      case 'none':
-      default:
-        // No filter
-        break;
-    }
-    
-    // Continue processing
-    filterProcessingRef.current = requestAnimationFrame(applyVideoFilter);
-  }, [activeFilter, videoEnabled]);
-
-  // Start/stop filter processing when filter changes
+  // Create filtered stream from canvas
   useEffect(() => {
-    if (activeFilter !== 'none' && videoEnabled) {
-      // Start processing
-      applyVideoFilter();
+    if (filterEnabled && activeFilter !== 'none' && filterCanvasRef.current) {
+      console.log('🎨 Creating filtered stream...', { filterEnabled, activeFilter, hasCanvas: !!filterCanvasRef.current });
+      
+    const canvas = filterCanvasRef.current;
+      
+      // Wait a bit for the canvas to have content
+      setTimeout(() => {
+        // Capture stream from filtered canvas at 30 FPS
+        const canvasStream = canvas.captureStream(30);
+        
+        console.log('📹 Canvas stream captured:', {
+          streamId: canvasStream.id,
+          videoTracks: canvasStream.getVideoTracks().length,
+          audioTracks: canvasStream.getAudioTracks().length
+        });
+        
+        // Add audio from original stream
+        if (localStreamRef.current) {
+          const audioTracks = localStreamRef.current.getAudioTracks();
+          audioTracks.forEach(track => {
+            canvasStream.addTrack(track);
+            console.log('🔊 Added audio track to filtered stream:', track.id);
+          });
+        }
+        
+        filteredStreamRef.current = canvasStream;
+        console.log('✅ Filtered stream created from canvas');
+        
+        // Update peer connection if already connected
+        if (peerConnectionRef.current && peerConnectionRef.current.connectionState === 'connected') {
+          console.log('🔄 Updating peer connection with filtered stream...');
+          
+          // Replace video track
+          const videoTrack = canvasStream.getVideoTracks()[0];
+          const sender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video');
+          if (sender && videoTrack) {
+            sender.replaceTrack(videoTrack)
+              .then(() => console.log('✅ Video track replaced with filtered version'))
+              .catch(err => console.error('❌ Failed to replace video track:', err));
+          }
+        }
+      }, 500); // Give canvas time to render
     } else {
-      // Stop processing
-      if (filterProcessingRef.current) {
-        cancelAnimationFrame(filterProcessingRef.current);
-        filterProcessingRef.current = null;
+      console.log('🚫 Filter disabled or removed', { filterEnabled, activeFilter });
+      
+      // Restore original stream
+      if (filteredStreamRef.current) {
+        filteredStreamRef.current.getTracks().forEach(track => track.stop());
+        filteredStreamRef.current = null;
+      }
+      
+      // Restore original video track if connected
+      if (peerConnectionRef.current && peerConnectionRef.current.connectionState === 'connected' && localStreamRef.current) {
+        console.log('🔄 Restoring original video stream...');
+        const videoTrack = localStreamRef.current.getVideoTracks()[0];
+        const sender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video');
+        if (sender && videoTrack) {
+          sender.replaceTrack(videoTrack)
+            .then(() => console.log('✅ Video track restored to original'))
+            .catch(err => console.error('❌ Failed to restore video track:', err));
+        }
       }
     }
-    
-    return () => {
-      if (filterProcessingRef.current) {
-        cancelAnimationFrame(filterProcessingRef.current);
-      }
-    };
-  }, [activeFilter, videoEnabled, applyVideoFilter]);
+  }, [filterEnabled, activeFilter]);
 
   // Toggle video size
   const toggleVideoSize = useCallback(() => {
     setLocalVideoEnlarged(!localVideoEnlarged);
   }, [localVideoEnlarged]);
+
+  // Debug function to check remote video state
+  const debugRemoteVideo = useCallback(() => {
+    console.log('🔍 Remote Video Debug Info:', {
+      hasRemoteVideoRef: !!remoteVideoRef.current,
+      remoteVideoElement: remoteVideoRef.current,
+      srcObject: remoteVideoRef.current?.srcObject,
+      src: remoteVideoRef.current?.src,
+      readyState: remoteVideoRef.current?.readyState,
+      networkState: remoteVideoRef.current?.networkState,
+      videoWidth: remoteVideoRef.current?.videoWidth,
+      videoHeight: remoteVideoRef.current?.videoHeight,
+      paused: remoteVideoRef.current?.paused,
+      muted: remoteVideoRef.current?.muted,
+      autoplay: remoteVideoRef.current?.autoplay,
+      playsInline: remoteVideoRef.current?.playsInline,
+      volume: remoteVideoRef.current?.volume,
+      remoteVideoEnabled,
+      peerConnectionState: peerConnectionRef.current?.connectionState,
+      iceConnectionState: peerConnectionRef.current?.iceConnectionState,
+      signalingState: peerConnectionRef.current?.signalingState,
+      localTracks: peerConnectionRef.current?.getSenders().length,
+      remoteTracks: peerConnectionRef.current?.getReceivers().length
+    });
+    
+    // Additional debugging for peer connection lifecycle
+    console.log('🔍 Peer Connection Lifecycle Debug:', {
+      hasPeerConnection: !!peerConnectionRef.current,
+      sessionId,
+      status,
+      hasSocket: !!socket,
+      hasLocalStream: !!localStreamRef.current,
+      localStreamActive: localStreamRef.current?.active,
+      localStreamTracks: localStreamRef.current?.getTracks().length,
+      partnerId: partner?.id,
+      currentTime: new Date().toISOString()
+    });
+    
+    // Audio-specific debugging
+    console.log('🔊 Audio Debug Info:', {
+      remoteVideoMuted: remoteVideoRef.current?.muted,
+      remoteVideoVolume: remoteVideoRef.current?.volume,
+      remoteAudioEnabled,
+      localAudioEnabled: audioEnabled,
+      localAudioTrack: localStreamRef.current?.getAudioTracks()[0],
+      localAudioTrackEnabled: localStreamRef.current?.getAudioTracks()[0]?.enabled,
+      remoteStream: remoteVideoRef.current?.srcObject as MediaStream | null,
+      remoteAudioTracks: (remoteVideoRef.current?.srcObject as MediaStream)?.getAudioTracks().length || 0,
+      remoteAudioTrackEnabled: (remoteVideoRef.current?.srcObject as MediaStream)?.getAudioTracks()[0]?.enabled,
+      remoteAudioTrackReadyState: (remoteVideoRef.current?.srcObject as MediaStream)?.getAudioTracks()[0]?.readyState,
+    });
+    
+    // Check if we're in the right state for WebRTC
+    if (status !== 'connected' && status !== 'connecting') {
+      console.warn('⚠️ Not in connected/connecting state - WebRTC may not be active');
+    }
+    
+    if (!peerConnectionRef.current) {
+      console.error('❌ No peer connection exists! This is the main issue.');
+    }
+    
+    if (!sessionId) {
+      console.error('❌ No session ID - cannot establish WebRTC connection');
+    }
+  }, [remoteVideoEnabled, remoteAudioEnabled, audioEnabled, sessionId, status, socket, partner]);
 
   // Exit to home
   const exitToHome = useCallback(() => {
@@ -1004,15 +1319,24 @@ export default function RandomChatWidget() {
     <div className="h-full w-full flex flex-col bg-black" suppressHydrationWarning>
       {/* Top Bar */}
       <div className="bg-gray-900 text-white p-4 flex items-center justify-between border-b border-gray-800" suppressHydrationWarning>
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold">Random Connect</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2">
+            <Image 
+              src="/logo-icon.png" 
+              alt="Flipy Chat Logo" 
+              width={28} 
+              height={28}
+              className="sm:w-8 sm:h-8"
+            />
+            <h1 className="text-lg sm:text-xl font-bold hidden sm:block">Flipy Chat</h1>
+          </div>
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${
               status === 'connected' ? 'bg-green-500' :
               status === 'searching' || status === 'connecting' ? 'bg-yellow-500' :
               'bg-gray-500'
             }`} />
-            <span className="text-sm text-gray-300">
+            <span className="text-xs sm:text-sm text-gray-300">
               {status === 'idle' && 'Not Connected'}
               {status === 'searching' && 'Searching...'}
               {status === 'connecting' && 'Connecting...'}
@@ -1029,9 +1353,12 @@ export default function RandomChatWidget() {
               variant="outline"
               size="sm"
               onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2"
             >
-              <Settings className="h-4 w-4 mr-2" />
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">
               {showFilters ? 'Hide Filters' : 'Show Filters'}
+              </span>
             </Button>
           )}
 
@@ -1051,7 +1378,7 @@ export default function RandomChatWidget() {
 
           {(status === 'connecting' || status === 'connected') && (
             <>
-              <Button variant="outline" size="sm" onClick={skipMatch}>
+              <Button variant="outline" size="sm" onClick={skipMatch} className="hidden md:flex">
                 <SkipForward className="h-4 w-4 mr-2" />
                 Skip
               </Button>
@@ -1060,11 +1387,12 @@ export default function RandomChatWidget() {
                 size="sm" 
                 onClick={previousMatch}
                 disabled={currentHistoryIndex <= 0}
+                className="hidden md:flex"
               >
                 <SkipBack className="h-4 w-4 mr-2" />
                 Previous
               </Button>
-              <Button variant="outline" size="sm" onClick={nextMatch}>
+              <Button variant="outline" size="sm" onClick={nextMatch} className="hidden md:flex">
                 Next
               </Button>
               <Button variant="destructive" size="sm" onClick={stopRandomChat}>
@@ -1076,11 +1404,68 @@ export default function RandomChatWidget() {
           <Button variant="ghost" size="sm" onClick={exitToHome}>
             <X className="h-4 w-4" />
           </Button>
-        </div>
       </div>
 
-      {/* Filters Panel - Show when filters are toggled and not in active chat */}
+        {/* Gender/Country/City Filters Row - Show always when filters are toggled */}
       {showFilters && (status === 'idle' || status === 'searching') && (
+          <div className="border-t border-gray-700 px-4 py-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-w-4xl" suppressHydrationWarning>
+              <Select
+                value={filters.gender}
+                onValueChange={(value) => setFilters({ ...filters, gender: value })}
+              >
+                <SelectTrigger className="bg-gray-700 border-gray-600">
+                  <SelectValue placeholder="Gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any Gender</SelectItem>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={selectedCountryCode}
+                onValueChange={handleCountryChange}
+              >
+                <SelectTrigger className="bg-gray-700 border-gray-600">
+                  <SelectValue placeholder="Select Country" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any Country</SelectItem>
+                  {countries.map((country) => (
+                    <SelectItem key={country.code} value={country.code}>
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.city}
+                onValueChange={handleCityChange}
+                disabled={!selectedCountryCode || selectedCountryCode === 'any'}
+              >
+                <SelectTrigger className="bg-gray-700 border-gray-600">
+                  <SelectValue placeholder={selectedCountryCode && selectedCountryCode !== 'any' ? "Select City" : "Select Country First"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any City</SelectItem>
+                  {cities.map((city, index) => (
+                    <SelectItem key={`${city.name}-${index}`} value={city.name}>
+                      {city.name}{city.state && `, ${city.state}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Old Filters Panel - REMOVED, now using inline filters */}
+      {false && showFilters && (status === 'idle' || status === 'searching') && (
         <div className="bg-gray-800 p-4 border-b border-gray-700" suppressHydrationWarning>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl" suppressHydrationWarning>
             <Select
@@ -1137,9 +1522,9 @@ export default function RandomChatWidget() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Video Area */}
-        <div className="flex-1 relative bg-black">
+        <div className="flex-1 relative bg-black min-h-[50vh] md:min-h-0">
           {/* Remote Video */}
           <div className="relative w-full h-full">
             <video
@@ -1148,6 +1533,15 @@ export default function RandomChatWidget() {
               playsInline
               muted={false}
               className="w-full h-full object-contain"
+              onClick={() => {
+                // Enable audio playback on user interaction
+                if (remoteVideoRef.current && remoteVideoRef.current.paused) {
+                  console.log('🔊 User clicked video - attempting to enable audio/video playback');
+                  remoteVideoRef.current.play().catch(e => {
+                    console.error('❌ Failed to enable playback:', e);
+                  });
+                }
+              }}
               onLoadedMetadata={() => console.log('🎥 Remote video metadata loaded')}
               onPlay={() => console.log('▶️ Remote video playing')}
               onError={(e) => console.error('❌ Remote video error:', e)}
@@ -1183,25 +1577,33 @@ export default function RandomChatWidget() {
           <div className={`absolute ${
             localVideoEnlarged 
               ? 'inset-0 z-10' 
-              : 'top-4 right-4 w-48 h-36 z-20'
+              : 'top-2 right-2 w-24 h-20 sm:w-32 sm:h-24 md:w-48 md:h-36 z-20'
           } bg-gray-900 rounded-lg overflow-hidden shadow-xl border-2 border-gray-700 transition-all duration-300`}>
             <div className="relative w-full h-full">
-              {/* Video element (hidden when filter is active) */}
+              {/* Hidden video element (source for filters) */}
               <video
                 ref={localVideoRef}
                 autoPlay
                 playsInline
                 muted
-                className={`w-full h-full object-cover ${activeFilter !== 'none' ? 'hidden' : ''}`}
+                className={`w-full h-full object-cover ${filterEnabled && activeFilter !== 'none' ? 'hidden' : ''}`}
                 onLoadedMetadata={() => console.log('🎥 Local video metadata loaded')}
                 onPlay={() => console.log('▶️ Local video playing')}
                 onError={(e) => console.error('❌ Local video error:', e)}
               />
               
-              {/* Canvas for filtered video */}
+              {/* Canvas for filtered video (visible when filter is active) */}
               <canvas
                 ref={filterCanvasRef}
-                className={`w-full h-full object-cover ${activeFilter === 'none' ? 'hidden' : ''}`}
+                className={`w-full h-full object-cover ${filterEnabled && activeFilter !== 'none' ? '' : 'hidden'}`}
+              />
+              
+              {/* FaceFilter component */}
+              <FaceFilter
+                sourceVideoRef={localVideoRef as React.RefObject<HTMLVideoElement>}
+                outputCanvasRef={filterCanvasRef as React.RefObject<HTMLCanvasElement>}
+                filterType={activeFilter}
+                enabled={filterEnabled}
               />
               
               {!videoEnabled && (
@@ -1273,120 +1675,249 @@ export default function RandomChatWidget() {
             </div>
           )}
 
+          {/* Navigation Controls - Mobile only (above video controls) */}
+          {(status === 'connecting' || status === 'connected') && (
+            <div className="absolute bottom-16 sm:bottom-20 left-1/2 transform -translate-x-1/2 flex items-center gap-2 md:hidden">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={previousMatch}
+                disabled={currentHistoryIndex <= 0}
+                className="h-8 px-2 text-xs"
+              >
+                <SkipBack className="h-3 w-3 mr-1" />
+                Prev
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={skipMatch}
+                className="h-8 px-2 text-xs"
+              >
+                <SkipForward className="h-3 w-3 mr-1" />
+                Skip
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={nextMatch}
+                className="h-8 px-2 text-xs"
+              >
+                Next
+              </Button>
+            </div>
+          )}
+
           {/* Video Controls */}
           {(status === 'connecting' || status === 'connected') && (
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2">
+            <div className="absolute bottom-2 md:bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-1 sm:gap-2">
               <Button
                 size="lg"
                 variant={videoEnabled ? 'default' : 'destructive'}
                 onClick={toggleVideo}
-                className="rounded-full w-14 h-14"
+                className="rounded-full w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 p-0"
               >
-                {videoEnabled ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
+                {videoEnabled ? <Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" /> : <VideoOff className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
               </Button>
 
               <Button
                 size="lg"
                 variant={audioEnabled ? 'default' : 'destructive'}
                 onClick={toggleAudio}
-                className="rounded-full w-14 h-14"
+                className="rounded-full w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 p-0"
               >
-                {audioEnabled ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
+                {audioEnabled ? <Mic className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" /> : <MicOff className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
               </Button>
 
               <Button
                 size="lg"
                 variant="outline"
                 onClick={() => setShowChat(!showChat)}
-                className="rounded-full w-14 h-14"
+                className="rounded-full w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 p-0 md:hidden"
               >
-                <MessageSquare className="h-6 w-6" />
+                <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
               </Button>
+              
+              {/* Debug Button - Only show in development */}
+              {process.env.NODE_ENV === 'development' && (
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={debugRemoteVideo}
+                  className="rounded-full w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 p-0 hidden sm:flex"
+                  title="Debug Remote Video"
+                >
+                  🔍
+                </Button>
+              )}
               
               {/* Filter Menu Button */}
               <div className="relative">
                 <Button
                   size="lg"
-                  variant={activeFilter !== 'none' ? 'default' : 'outline'}
+                  variant={filterEnabled && activeFilter !== 'none' ? 'default' : 'outline'}
                   onClick={() => setShowFilterMenu(!showFilterMenu)}
-                  className="rounded-full w-14 h-14"
+                  className="rounded-full w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 p-0"
                 >
-                  <Sparkles className="h-6 w-6" />
+                  <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
                 </Button>
                 
-                {/* Filter Dropdown Menu */}
+                {/* Filter Dropdown - Mobile Optimized */}
                 {showFilterMenu && (
-                  <div className="absolute bottom-16 left-0 bg-gray-800 rounded-lg shadow-xl p-2 min-w-[200px] border border-gray-700">
-                    <div className="space-y-1">
+                  <>
+                    {/* Backdrop for mobile */}
+                    <div 
+                      className="fixed inset-0 bg-black/50 z-40 md:hidden"
+                      onClick={() => setShowFilterMenu(false)}
+                    />
+                    
+                    {/* Filter Menu */}
+                    <div className="fixed md:absolute bottom-0 md:bottom-16 left-0 right-0 md:left-auto md:right-auto md:w-[250px] bg-gray-800 rounded-t-2xl md:rounded-lg shadow-xl p-3 max-h-[60vh] md:max-h-[400px] overflow-y-auto border-t md:border border-gray-700 z-50">
+                      <div className="flex items-center justify-between mb-3 md:hidden">
+                        <h3 className="text-white font-semibold">Face Filters</h3>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setShowFilterMenu(false)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      <div className="space-y-2">
                       <button
                         onClick={() => {
                           setActiveFilter('none');
+                            setFilterEnabled(false);
                           setShowFilterMenu(false);
                         }}
-                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white ${
-                          activeFilter === 'none' ? 'bg-gray-700' : ''
+                          className={`w-full text-left px-4 py-2.5 rounded hover:bg-gray-700 text-white transition-colors ${
+                            activeFilter === 'none' ? 'bg-indigo-600' : ''
                         }`}
                       >
-                        No Filter
+                          <span className="font-semibold">No Filter</span>
                       </button>
+                        
+                        {/* Privacy */}
+                        <div className="border-t border-gray-600 pt-2 mt-2">
+                          <p className="text-xs text-gray-400 px-2 mb-1">PRIVACY</p>
                       <button
                         onClick={() => {
-                          setActiveFilter('blur');
+                              setActiveFilter('blur-face');
+                              setFilterEnabled(true);
                           setShowFilterMenu(false);
                         }}
-                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white flex items-center gap-2 ${
-                          activeFilter === 'blur' ? 'bg-gray-700' : ''
+                            className={`w-full text-left px-4 py-2.5 rounded hover:bg-gray-700 text-white flex items-center gap-2 transition-colors ${
+                              activeFilter === 'blur-face' ? 'bg-indigo-600' : ''
                         }`}
                       >
                         <Eye className="h-4 w-4" />
                         Blur Face
                       </button>
+                        </div>
+                        
+                        {/* Sunglasses */}
+                        <div className="border-t border-gray-600 pt-2 mt-2">
+                          <p className="text-xs text-gray-400 px-2 mb-1">SUNGLASSES</p>
                       <button
                         onClick={() => {
-                          setActiveFilter('grayscale');
+                              setActiveFilter('sunglasses-1');
+                              setFilterEnabled(true);
                           setShowFilterMenu(false);
                         }}
-                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white ${
-                          activeFilter === 'grayscale' ? 'bg-gray-700' : ''
+                            className={`w-full text-left px-4 py-2.5 rounded hover:bg-gray-700 text-white transition-colors ${
+                              activeFilter === 'sunglasses-1' ? 'bg-indigo-600' : ''
                         }`}
                       >
-                        Grayscale
+                            🕶️ Classic Sunglasses
                       </button>
                       <button
                         onClick={() => {
-                          setActiveFilter('sepia');
+                              setActiveFilter('sunglasses-2');
+                              setFilterEnabled(true);
                           setShowFilterMenu(false);
                         }}
-                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white ${
-                          activeFilter === 'sepia' ? 'bg-gray-700' : ''
+                            className={`w-full text-left px-4 py-2.5 rounded hover:bg-gray-700 text-white transition-colors ${
+                              activeFilter === 'sunglasses-2' ? 'bg-indigo-600' : ''
                         }`}
                       >
-                        Sepia
+                            🕶️ Round Sunglasses
                       </button>
                       <button
                         onClick={() => {
-                          setActiveFilter('vintage');
+                              setActiveFilter('sunglasses-3');
+                              setFilterEnabled(true);
                           setShowFilterMenu(false);
                         }}
-                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white ${
-                          activeFilter === 'vintage' ? 'bg-gray-700' : ''
+                            className={`w-full text-left px-4 py-2.5 rounded hover:bg-gray-700 text-white transition-colors ${
+                              activeFilter === 'sunglasses-3' ? 'bg-indigo-600' : ''
                         }`}
                       >
-                        Vintage
+                            🕶️ Aviator Sunglasses
                       </button>
+                        </div>
+                        
+                        {/* Hats */}
+                        <div className="border-t border-gray-600 pt-2 mt-2">
+                          <p className="text-xs text-gray-400 px-2 mb-1">HATS</p>
                       <button
                         onClick={() => {
-                          setActiveFilter('warm');
+                              setActiveFilter('hat-1');
+                              setFilterEnabled(true);
                           setShowFilterMenu(false);
                         }}
-                        className={`w-full text-left px-4 py-2 rounded hover:bg-gray-700 text-white ${
-                          activeFilter === 'warm' ? 'bg-gray-700' : ''
-                        }`}
-                      >
-                        Warm Tone
+                            className={`w-full text-left px-4 py-2.5 rounded hover:bg-gray-700 text-white transition-colors ${
+                              activeFilter === 'hat-1' ? 'bg-indigo-600' : ''
+                            }`}
+                          >
+                            🎩 Top Hat
+                          </button>
+                          <button
+                            onClick={() => {
+                              setActiveFilter('hat-2');
+                              setFilterEnabled(true);
+                              setShowFilterMenu(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 rounded hover:bg-gray-700 text-white transition-colors ${
+                              activeFilter === 'hat-2' ? 'bg-indigo-600' : ''
+                            }`}
+                          >
+                            🧢 Baseball Cap
+                          </button>
+                          <button
+                            onClick={() => {
+                              setActiveFilter('hat-3');
+                              setFilterEnabled(true);
+                              setShowFilterMenu(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 rounded hover:bg-gray-700 text-white transition-colors ${
+                              activeFilter === 'hat-3' ? 'bg-indigo-600' : ''
+                            }`}
+                          >
+                            👒 Sun Hat
                       </button>
                     </div>
+                        
+                        {/* Masks */}
+                        <div className="border-t border-gray-600 pt-2 mt-2">
+                          <p className="text-xs text-gray-400 px-2 mb-1">FACE MASKS</p>
+                          <button
+                            onClick={() => {
+                              setActiveFilter('mask-1');
+                              setFilterEnabled(true);
+                              setShowFilterMenu(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 rounded hover:bg-gray-700 text-white transition-colors ${
+                              activeFilter === 'mask-1' ? 'bg-indigo-600' : ''
+                            }`}
+                          >
+                            😷 Face Mask
+                          </button>
                   </div>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -1395,10 +1926,21 @@ export default function RandomChatWidget() {
 
         {/* Chat Sidebar */}
         {showChat && (status === 'connecting' || status === 'connected') && (
-          <div className="w-80 bg-gray-900 border-l border-gray-800 flex flex-col">
+          <div className="fixed md:relative inset-0 md:inset-auto md:w-80 bg-gray-900 border-l border-gray-800 flex flex-col z-40">
             {/* Partner Info */}
             {partner && (
               <div className="p-4 border-b border-gray-800">
+                <div className="flex items-center justify-between mb-2 md:hidden">
+                  <h3 className="text-white font-semibold">Chat</h3>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowChat(false)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
                     <AvatarImage 
