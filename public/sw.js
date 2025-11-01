@@ -112,8 +112,8 @@ self.addEventListener('push', (event) => {
   let notificationData = {
     title: 'Chat App',
     body: 'You have a new message',
-    icon: '/icon-192x192.svg',
-    badge: '/icon-192x192.svg',
+    icon: '/logo-icon.png',
+    badge: '/logo-icon.png',
     tag: 'chat-notification',
     requireInteraction: true,
     vibrate: [200, 100, 200], // Vibration pattern
@@ -122,12 +122,12 @@ self.addEventListener('push', (event) => {
       {
         action: 'open',
         title: 'Open Chat',
-        icon: '/icon-192x192.svg'
+        icon: '/logo-icon.png'
       },
       {
         action: 'dismiss',
         title: 'Dismiss',
-        icon: '/icon-192x192.svg'
+        icon: '/logo-icon.png'
       }
     ]
   };
@@ -335,8 +335,8 @@ self.addEventListener('message', (event) => {
     event.waitUntil(
       self.registration.showNotification(title, {
         body,
-        icon: '/icon-192x192.svg',
-        badge: '/icon-192x192.svg',
+        icon: '/logo-icon.png',
+        badge: '/logo-icon.png',
         tag: 'background-notification',
         requireInteraction: true,
         vibrate: [200, 100, 200],
@@ -346,12 +346,12 @@ self.addEventListener('message', (event) => {
           {
             action: 'open',
             title: 'Open Chat',
-            icon: '/icon-192x192.svg'
+            icon: '/logo-icon.png'
           },
           {
             action: 'dismiss',
             title: 'Dismiss',
-            icon: '/icon-192x192.svg'
+            icon: '/logo-icon.png'
           }
         ]
       })

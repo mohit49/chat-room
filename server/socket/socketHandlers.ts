@@ -530,7 +530,7 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
               {
                 title: '🎙️ Live Broadcast Started!',
                 body: `${socket.user?.username || socket.user?.mobileNumber} is broadcasting in ${room.name}`,
-                icon: '/icon-192x192.svg',
+                icon: '/logo-icon.png',
                 data: {
                   type: 'voice_broadcast',
                   roomId: data.roomId,

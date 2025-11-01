@@ -107,13 +107,13 @@ class EnhancedNudgeService {
     const getIcon = () => {
       switch (notification.type) {
         case 'message':
-          return '/icon-192x192.svg';
+          return '/logo-icon.png';
         case 'follow':
-          return '/icon-192x192.svg';
+          return '/logo-icon.png';
         case 'room':
-          return '/icon-192x192.svg';
+          return '/logo-icon.png';
         default:
-          return '/icon-192x192.svg';
+          return '/logo-icon.png';
       }
     };
 
@@ -137,26 +137,26 @@ class EnhancedNudgeService {
         actions.push({
           action: 'open',
           title: 'Open Chat',
-          icon: '/icon-192x192.svg'
+          icon: '/logo-icon.png'
         });
       } else if (notification.type === 'follow') {
         actions.push({
           action: 'open',
           title: 'View Profile',
-          icon: '/icon-192x192.svg'
+          icon: '/logo-icon.png'
         });
       } else if (notification.type === 'room') {
         actions.push({
           action: 'open',
           title: 'Join Room',
-          icon: '/icon-192x192.svg'
+          icon: '/logo-icon.png'
         });
       }
 
       actions.push({
         action: 'dismiss',
         title: 'Dismiss',
-        icon: '/icon-192x192.svg'
+        icon: '/logo-icon.png'
       });
 
       return actions;
@@ -166,7 +166,7 @@ class EnhancedNudgeService {
       title: notification.title,
       body: notification.message,
       icon: getIcon(),
-      badge: '/icon-192x192.svg',
+      badge: '/logo-icon.png',
       tag: getTag(),
       data: {
         type: notification.type,

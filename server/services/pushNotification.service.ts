@@ -89,8 +89,8 @@ class PushNotificationService {
       const pushPayload = JSON.stringify({
         title: payload.title,
         body: payload.body,
-        icon: payload.icon || '/icon-192x192.svg',
-        badge: '/icon-192x192.svg',
+        icon: payload.icon || '/logo-icon.png',
+        badge: '/logo-icon.png',
         data: payload.data,
         requireInteraction: true,
         vibrate: [200, 100, 200]

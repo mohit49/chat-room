@@ -61,7 +61,7 @@ export const pushNotificationController = {
       const success = await pushNotificationService.sendPushToUser(userId, {
         title: 'Test Push Notification',
         body: 'This is a test push notification from Chat App!',
-        icon: '/icon-192x192.svg',
+        icon: '/logo-icon.png',
         data: {
           type: 'test',
           timestamp: Date.now()

@@ -160,8 +160,8 @@ class PushNotificationService {
     try {
       await this.registration.showNotification('Test Notification', {
         body: 'This is a test notification from Chat App',
-        icon: '/icon-192x192.svg',
-        badge: '/icon-192x192.svg',
+        icon: '/logo-icon.png',
+        badge: '/logo-icon.png',
         tag: 'test-notification',
         requireInteraction: true,
         vibrate: [200, 100, 200], // Vibration pattern

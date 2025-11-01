@@ -39,11 +39,15 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: "/logo-icon.png", sizes: "any" },
       { url: "/logo-icon.png", sizes: "192x192", type: "image/png" },
       { url: "/logo-icon.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [
       { url: "/logo-icon.png", sizes: "192x192", type: "image/png" },
+    ],
+    shortcut: [
+      { url: "/logo-icon.png" },
     ],
   },
   openGraph: {
@@ -78,6 +82,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/logo-icon.png" type="image/png" />
+        <link rel="shortcut icon" href="/logo-icon.png" type="image/png" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#1f2937" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

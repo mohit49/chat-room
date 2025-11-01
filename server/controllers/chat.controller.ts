@@ -121,7 +121,7 @@ export const chatController = {
                   {
                     title: room.name,
                     body: `${messageData.username}: ${message.substring(0, 100)}`,
-                    icon: '/icon-192x192.svg',
+                    icon: '/logo-icon.png',
                     data: {
                       type: 'room_message',
                       roomId,

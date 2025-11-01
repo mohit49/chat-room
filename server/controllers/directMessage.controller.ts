@@ -62,7 +62,7 @@ export const directMessageController = {
           await pushNotificationService.sendPushToUser(receiverId, {
             title: `New message from ${result.senderUsername}`,
             body: message.substring(0, 100),
-            icon: '/icon-192x192.svg',
+            icon: '/logo-icon.png',
             data: {
               type: 'direct_message',
               senderId,
