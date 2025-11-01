@@ -313,7 +313,7 @@ export class EmailService {
   }
 
   /**
-   * Get email header with logo and text inline
+   * Get email header with logo and text inline (table-based for email compatibility)
    */
   private getEmailHeader(title: string): string {
     return `
@@ -322,13 +322,19 @@ export class EmailService {
           <table role="presentation" style="width: 100%; border-collapse: collapse;">
             <tr>
               <td align="center">
-                <!-- Logo and Brand Name - Inline -->
-                <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                  <img src="https://flipychat.com/_next/image?url=%2Flogo-icon.png&w=32&q=75" alt="FlipyChat Logo" style="width: 50px; height: 50px; border-radius: 10px; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
-                  <h1 style="margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: #667eea; font-size: 28px; font-weight: bold; letter-spacing: -0.5px;">
-                    FlipyChat
-                  </h1>
-                </div>
+                <!-- Logo and Brand Name - Inline using table -->
+                <table role="presentation" style="border-collapse: collapse; margin: 0 auto;">
+                  <tr>
+                    <td style="vertical-align: middle; padding-right: 15px; line-height: 0;">
+                      <img src="https://flipychat.com/_next/image?url=%2Flogo-icon.png&w=32&q=75" alt="FlipyChat Logo" style="width: 50px; height: 50px; border-radius: 10px; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3); display: block; vertical-align: middle;">
+                    </td>
+                    <td style="vertical-align: middle; line-height: 50px;">
+                      <h1 style="margin: 0; padding: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: #667eea; font-size: 28px; font-weight: bold; letter-spacing: -0.5px; line-height: 50px; vertical-align: middle; display: inline-block;">
+                        FlipyChat
+                      </h1>
+                    </td>
+                  </tr>
+                </table>
                 ${title !== 'FlipyChat' ? `<p style="margin: 10px 0 0 0; color: #666666; font-size: 14px; text-align: center;">${title}</p>` : ''}
               </td>
             </tr>
