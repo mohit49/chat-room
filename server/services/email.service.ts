@@ -313,7 +313,7 @@ export class EmailService {
   }
 
   /**
-   * Get email header with logo
+   * Get email header with logo and text inline
    */
   private getEmailHeader(title: string): string {
     return `
@@ -322,17 +322,14 @@ export class EmailService {
           <table role="presentation" style="width: 100%; border-collapse: collapse;">
             <tr>
               <td align="center">
-                <div style="display: inline-block; text-align: center;">
-                  <!-- Logo -->
-                  <div style="margin-bottom: 10px;">
-                    <img src="https://flipychat.com/_next/image?url=%2Flogo-icon.png&w=32&q=75" alt="FlipyChat Logo" style="width: 60px; height: 60px; border-radius: 12px; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
-                  </div>
-                  <!-- Brand Name -->
-                  <h1 style="margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-size: 28px; font-weight: bold; letter-spacing: -0.5px;">
+                <!-- Logo and Brand Name - Inline -->
+                <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+                  <img src="https://flipychat.com/_next/image?url=%2Flogo-icon.png&w=32&q=75" alt="FlipyChat Logo" style="width: 50px; height: 50px; border-radius: 10px; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                  <h1 style="margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: #667eea; font-size: 28px; font-weight: bold; letter-spacing: -0.5px;">
                     FlipyChat
                   </h1>
-                  ${title !== 'FlipyChat' ? `<p style="margin: 5px 0 0 0; color: #666666; font-size: 14px;">${title}</p>` : ''}
                 </div>
+                ${title !== 'FlipyChat' ? `<p style="margin: 10px 0 0 0; color: #666666; font-size: 14px; text-align: center;">${title}</p>` : ''}
               </td>
             </tr>
           </table>
