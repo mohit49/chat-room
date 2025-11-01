@@ -84,7 +84,7 @@ export default function InstantChatDialog({ isOpen, onClose }: InstantChatDialog
             {/* Creator Info */}
             <div className="bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-lg p-3">
               <p className="text-sm text-pink-900">
-                <strong>Creating as:</strong> {user?.username || user?.mobileNumber || 'User'}
+                <strong>Creating as:</strong> {user?.username || 'User'}
               </p>
               <p className="text-xs text-pink-700 mt-1">
                 Your name will be visible to participants

@@ -297,12 +297,12 @@ export default function SearchBox({ className = '' }: SearchBoxProps) {
                                     <AvatarFallback>
                                       {user.profilePicture?.type === 'avatar'
                                         ? '🎭'
-                                        : user.username?.charAt(0).toUpperCase() || user.mobileNumber.charAt(0)}
+                                        : user.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
                                     </AvatarFallback>
                                   </Avatar>
                                   <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium truncate">@{user.username}</p>
-                                    <p className="text-xs text-muted-foreground truncate">{user.mobileNumber}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                                   </div>
                                 </div>
                               ))}

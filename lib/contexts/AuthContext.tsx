@@ -218,7 +218,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (response.success && user) {
         setUser({
           ...user,
-          emailVerified: response.emailVerified || false,
+          emailVerified: (response as any).emailVerified || false,
         });
       }
     } catch (error) {

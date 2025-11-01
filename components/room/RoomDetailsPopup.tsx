@@ -16,7 +16,7 @@ import { api } from '@/lib/api';
 interface RoomMember {
   userId: string;
   username: string;
-  mobileNumber: string;
+  email: string;
   role: 'admin' | 'editor' | 'viewer';
   profilePicture?: {
     type: 'upload' | 'avatar';
@@ -224,10 +224,10 @@ export default function RoomDetailsPopup({ isOpen, onClose, room, currentUserId 
               <CardContent>
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <Label htmlFor="mobileNumber">Mobile Number</Label>
+                    <Label htmlFor="usernameOrEmail">Username or Email</Label>
                     <Input
-                      id="mobileNumber"
-                      placeholder="Enter mobile number"
+                      id="usernameOrEmail"
+                      placeholder="Enter username or email"
                       value={newMemberMobile}
                       onChange={(e) => setNewMemberMobile(e.target.value)}
                     />
@@ -264,19 +264,19 @@ export default function RoomDetailsPopup({ isOpen, onClose, room, currentUserId 
                             member.profilePicture?.type === 'upload'
                               ? member.profilePicture.url
                               : member.profilePicture?.type === 'avatar'
-                              ? `https://api.dicebear.com/7.x/${member.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${member.profilePicture.seed || member.mobileNumber}`
+                              ? `https://api.dicebear.com/7.x/${member.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${member.profilePicture.seed || member.email}`
                               : undefined
                           }
                         />
                         <AvatarFallback>
                           {member.profilePicture?.type === 'avatar'
                             ? '🎭'
-                            : member.username?.charAt(0).toUpperCase() || member.mobileNumber.charAt(0)}
+                            : member.username?.charAt(0).toUpperCase() || member.email?.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium">{member.username || member.mobileNumber}</p>
-                        <p className="text-sm text-muted-foreground">{member.mobileNumber}</p>
+                        <p className="font-medium">{member.username || member.email}</p>
+                        <p className="text-sm text-muted-foreground">{member.email}</p>
                       </div>
                     </div>
                     

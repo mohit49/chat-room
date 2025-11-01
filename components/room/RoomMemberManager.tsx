@@ -154,14 +154,14 @@ export default function RoomMemberManager({
                         member.profilePicture?.type === 'upload'
                           ? member.profilePicture.url
                           : member.profilePicture?.type === 'avatar'
-                          ? `https://api.dicebear.com/7.x/${member.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${member.profilePicture.seed || member.mobileNumber}`
+                          ? `https://api.dicebear.com/7.x/${member.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${member.profilePicture.seed || member.email}`
                           : undefined
                       }
                     />
                     <AvatarFallback className="text-sm">
                       {member.profilePicture?.type === 'avatar'
                         ? '🎭'
-                        : member.username?.charAt(0).toUpperCase() || member.mobileNumber?.charAt(0)}
+                        : member.username?.charAt(0).toUpperCase() || member.email?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   
@@ -174,7 +174,7 @@ export default function RoomMemberManager({
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {member.mobileNumber}
+                      {member.email}
                     </p>
                   </div>
                 </div>

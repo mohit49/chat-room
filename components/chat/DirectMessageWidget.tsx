@@ -311,7 +311,7 @@ export default function DirectMessageWidget({
           imageUrl: messageData.imageUrl,
           audioUrl: messageData.audioUrl,
           timestamp: new Date().toISOString(),
-          senderUsername: user.username || user.mobileNumber,
+          senderUsername: user.username,
           senderProfilePicture: user.profile?.profilePicture
         };
 

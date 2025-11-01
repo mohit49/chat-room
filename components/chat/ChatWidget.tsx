@@ -492,7 +492,7 @@ export default function ChatWidget({
           id: responseMessage?.id || `temp-${Date.now()}`,
           roomId: roomId,
           userId: user?.id || '',
-          username: user?.username || user?.mobileNumber || 'You',
+          username: user?.username || 'You',
           message: messageData.message,
           messageType: messageData.messageType || 'text',
           imageUrl: messageData.imageUrl,
