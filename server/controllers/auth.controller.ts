@@ -25,6 +25,8 @@ export class AuthController {
         sameSite: 'lax',
       });
 
+      const isProduction = process.env.NODE_ENV === 'production';
+
       return res.json({
         success: true,
         message: 'Registration successful. Please check your email for verification code.',
@@ -36,7 +38,8 @@ export class AuthController {
           profile: user.profile,
         },
         token,
-        verificationOTP, // Return for development/testing
+        // Only return OTP in development mode
+        ...(isProduction ? {} : { verificationOTP }),
       });
     } catch (error) {
       next(error);
@@ -122,10 +125,13 @@ export class AuthController {
       const { email } = req.body;
       const { verificationOTP } = await authService.resendVerificationEmail(email);
 
+      const isProduction = process.env.NODE_ENV === 'production';
+
       return res.json({
         success: true,
         message: 'Verification email sent successfully',
-        verificationOTP, // Return for development/testing
+        // Only return OTP in development mode
+        ...(isProduction ? {} : { verificationOTP }),
       });
     } catch (error) {
       next(error);

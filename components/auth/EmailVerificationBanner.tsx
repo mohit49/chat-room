@@ -162,7 +162,7 @@ export function EmailVerificationBanner() {
             </div>
 
             {/* Show mock OTP in development */}
-            {mockOtp && (
+            {mockOtp && process.env.NODE_ENV !== 'production' && (
               <div className="mt-3 p-3 bg-green-50 dark:bg-green-950 border-2 border-green-300 dark:border-green-700 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>

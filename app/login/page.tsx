@@ -314,7 +314,7 @@ export default function LoginPage() {
                 </Button>
 
                 {/* Show verification OTP in development */}
-                {mockOtp && (
+                {mockOtp && process.env.NODE_ENV !== 'production' && (
                   <div className="p-4 bg-green-50 dark:bg-green-950 border-2 border-green-300 dark:border-green-700 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle className="h-5 w-5 text-green-600" />
@@ -329,6 +329,20 @@ export default function LoginPage() {
                     </div>
                     <p className="text-xs text-green-700 dark:text-green-300 mt-2 text-center">
                       You can verify your email now or later from your profile
+                    </p>
+                  </div>
+                )}
+                
+                {mockOtp && process.env.NODE_ENV === 'production' && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950 border-2 border-blue-300 dark:border-blue-700 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-5 w-5 text-blue-600" />
+                      <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                        Verification email sent to {registerEmail}
+                      </p>
+                    </div>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+                      Please check your inbox and enter the OTP to verify your account
                     </p>
                   </div>
                 )}
