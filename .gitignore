@@ -49,3 +49,11 @@ public/uploads/
 # IDE
 .vscode
 .idea
+
+# Environment files
+# Note: .env.production is tracked in Git for production deployment
+# local.env is tracked for local development
+# Do NOT track .env or .env.local if they contain secrets
+.env
+.env.local
+.env.*.local

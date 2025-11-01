@@ -9,6 +9,31 @@ export class EmailService {
     // Supports Gmail, Hostinger, and other SMTP providers
     const port = parseInt(process.env.EMAIL_PORT || '587');
     const isSecurePort = port === 465; // Port 465 requires SSL/TLS
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    const hasEmailConfig = !!(process.env.EMAIL_USER && process.env.EMAIL_PASSWORD);
+    
+    // Log email configuration status
+    console.log('📧 Email Service Configuration:');
+    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`   Host: ${process.env.EMAIL_HOST || 'smtp.gmail.com'}`);
+    console.log(`   Port: ${port} (${isSecurePort ? 'SSL' : 'STARTTLS'})`);
+    console.log(`   User: ${process.env.EMAIL_USER || 'NOT SET'}`);
+    console.log(`   Password: ${process.env.EMAIL_PASSWORD ? '***SET***' : 'NOT SET'}`);
+    console.log(`   From: ${process.env.EMAIL_FROM || 'NOT SET'}`);
+    
+    // In production, email configuration is REQUIRED
+    if (isProduction && !hasEmailConfig) {
+      console.error('❌ FATAL: Email configuration is required in production!');
+      console.error('   Please set EMAIL_USER and EMAIL_PASSWORD in .env.production');
+      throw new Error('Email configuration missing in production environment');
+    }
+    
+    if (hasEmailConfig) {
+      console.log(`   Status: ✅ CONFIGURED - Emails will be sent`);
+    } else {
+      console.log(`   Status: ⚠️  DEMO MODE (Local development - OTP shown in console)`);
+    }
     
     this.transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST || 'smtp.gmail.com',
@@ -44,18 +69,49 @@ export class EmailService {
     };
 
     try {
-      // In development without email configuration, just return OTP
+      const isProduction = process.env.NODE_ENV === 'production';
+      
+      // Check if email configuration is available
       if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-        console.log(`[DEV] Verification OTP for ${email}: ${otp}`);
-        return otp; // Return OTP for development
+        if (isProduction) {
+          // In production, this should never happen (constructor would have thrown)
+          throw new Error('Email configuration missing in production');
+        }
+        // In development, use demo mode
+        console.log(`📧 [DEMO MODE] Verification OTP for ${email}: ${otp}`);
+        console.log(`   (Local development - email not sent)`);
+        return otp;
       }
 
+      // Send actual email
+      console.log(`📧 Sending verification email to ${email}...`);
       await this.transporter.sendMail(mailOptions);
-      console.log(`Verification email sent to ${email}`);
-      return otp; // Return OTP for development display
-    } catch (error) {
-      console.error('Error sending verification email:', error);
-      // In development, still return OTP even if email fails
+      console.log(`✅ Verification email sent successfully to ${email}`);
+      
+      // In development, also show OTP in console for convenience
+      if (!isProduction) {
+        console.log(`   [DEV] OTP: ${otp}`);
+      }
+      
+      return otp;
+    } catch (error: any) {
+      console.error('❌ Error sending verification email:', error.message || error);
+      if (error.code) {
+        console.error(`   Error Code: ${error.code}`);
+      }
+      if (error.response) {
+        console.error(`   Response: ${error.response}`);
+      }
+      
+      const isProduction = process.env.NODE_ENV === 'production';
+      
+      // In production, throw error - don't allow fallback
+      if (isProduction) {
+        throw new Error(`Failed to send verification email: ${error.message}`);
+      }
+      
+      // In development, show OTP as fallback
+      console.log(`   [DEV FALLBACK] OTP for ${email}: ${otp}`);
       return otp;
     }
   }
@@ -78,17 +134,49 @@ export class EmailService {
     };
 
     try {
-      // In development without email configuration, just return OTP
+      const isProduction = process.env.NODE_ENV === 'production';
+      
+      // Check if email configuration is available
       if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-        console.log(`[DEV] Password Reset OTP for ${email}: ${otp}`);
+        if (isProduction) {
+          // In production, this should never happen (constructor would have thrown)
+          throw new Error('Email configuration missing in production');
+        }
+        // In development, use demo mode
+        console.log(`📧 [DEMO MODE] Password Reset OTP for ${email}: ${otp}`);
+        console.log(`   (Local development - email not sent)`);
         return otp;
       }
 
+      // Send actual email
+      console.log(`📧 Sending password reset email to ${email}...`);
       await this.transporter.sendMail(mailOptions);
-      console.log(`Password reset email sent to ${email}`);
+      console.log(`✅ Password reset email sent successfully to ${email}`);
+      
+      // In development, also show OTP in console for convenience
+      if (!isProduction) {
+        console.log(`   [DEV] OTP: ${otp}`);
+      }
+      
       return otp;
-    } catch (error) {
-      console.error('Error sending password reset email:', error);
+    } catch (error: any) {
+      console.error('❌ Error sending password reset email:', error.message || error);
+      if (error.code) {
+        console.error(`   Error Code: ${error.code}`);
+      }
+      if (error.response) {
+        console.error(`   Response: ${error.response}`);
+      }
+      
+      const isProduction = process.env.NODE_ENV === 'production';
+      
+      // In production, throw error - don't allow fallback
+      if (isProduction) {
+        throw new Error(`Failed to send password reset email: ${error.message}`);
+      }
+      
+      // In development, show OTP as fallback
+      console.log(`   [DEV FALLBACK] OTP for ${email}: ${otp}`);
       return otp;
     }
   }
