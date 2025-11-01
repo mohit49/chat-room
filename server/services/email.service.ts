@@ -13,14 +13,20 @@ export class EmailService {
     
     const hasEmailConfig = !!(process.env.EMAIL_USER && process.env.EMAIL_PASSWORD);
     
-    // Log email configuration status
+    // Log email configuration status (enhanced for debugging)
     console.log('📧 Email Service Configuration:');
     console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`   Host: ${process.env.EMAIL_HOST || 'smtp.gmail.com'}`);
+    console.log(`   Host: ${process.env.EMAIL_HOST || 'NOT SET'}`);
     console.log(`   Port: ${port} (${isSecurePort ? 'SSL' : 'STARTTLS'})`);
     console.log(`   User: ${process.env.EMAIL_USER || 'NOT SET'}`);
-    console.log(`   Password: ${process.env.EMAIL_PASSWORD ? '***SET***' : 'NOT SET'}`);
+    console.log(`   Password: ${process.env.EMAIL_PASSWORD ? `***SET*** (length: ${process.env.EMAIL_PASSWORD.length}, last 4: ***${process.env.EMAIL_PASSWORD.slice(-4)})` : 'NOT SET'}`);
     console.log(`   From: ${process.env.EMAIL_FROM || 'NOT SET'}`);
+    
+    // Debug: Show if password contains special characters
+    if (process.env.EMAIL_PASSWORD) {
+      const hasSpecialChars = /[^a-zA-Z0-9]/.test(process.env.EMAIL_PASSWORD);
+      console.log(`   Password has special chars: ${hasSpecialChars ? 'YES' : 'NO'}`);
+    }
     
     // In production, email configuration is REQUIRED
     if (isProduction && !hasEmailConfig) {
