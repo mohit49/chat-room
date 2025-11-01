@@ -23,32 +23,101 @@ import {
 import LandingClientWrapper from '@/components/landing/LandingClientWrapper';
 import { UsersAndRoomsSection } from '@/components/landing/UsersAndRoomsSection';
 
-// SEO Metadata
+// SEO Metadata with enhanced social sharing support
 export const metadata: Metadata = {
-  title: 'Flipy Chat - Connect, Chat, and Collaborate Anywhere',
-  description: 'Experience seamless communication with Flipy Chat. Create rooms, broadcast voice messages, share moments, and build meaningful connections with people around the world. Join our safe, modern chat platform today!',
-  keywords: ['chat app', 'real-time messaging', 'voice broadcasting', 'chat rooms', 'online community', 'social chat', 'instant messaging', 'group chat', 'voice messages'],
+  title: 'FlipyChat – Random Stranger Chat & Instant Social Connection',
+  description: 'Chat with random strangers instantly on FlipyChat! Use our free chat alternative to video chat with strangers and meet cool new people anywhere, anytime.',
   openGraph: {
-    title: 'Flipy Chat - Modern Real-Time Communication Platform',
-    description: 'Join Flipy Chat for instant messaging, voice broadcasting, and meaningful connections. Safe, fast, and feature-rich chat experience.',
-    type: 'website',
+    title: 'FlipyChat – Random Stranger Chat & Instant Social Connection',
+    description: 'Chat with random strangers instantly on FlipyChat! Use our free chat alternative to video chat with strangers and meet cool new people anywhere, anytime.',
     url: 'https://flipychat.com',
+    siteName: 'FlipyChat',
+    type: 'website',
+    locale: 'en_US',
+    images: [
+      {
+        url: 'https://flipychat.com/logo-icon.png',
+        width: 1200,
+        height: 630,
+        alt: 'FlipyChat - Random Stranger Chat Platform',
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Flipy Chat - Connect Anywhere, Anytime',
-    description: 'Experience seamless communication with real-time messaging, voice broadcasting, and chat rooms.',
+    title: 'FlipyChat – Random Stranger Chat & Instant Social Connection',
+    description: 'Chat with random strangers instantly on FlipyChat! Use our free chat alternative to video chat with strangers and meet cool new people anywhere, anytime.',
+    images: ['https://flipychat.com/logo-icon.png'],
+    creator: '@flipychat',
+    site: '@flipychat',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
 };
 
-export default function LandingPage() {
+// Enable server-side rendering with periodic revalidation (every 60 seconds)
+export const revalidate = 60;
+
+// Fetch data server-side for SEO
+async function getServerSideData() {
+  try {
+    // Get API URL - use NEXT_PUBLIC_API_URL or construct it
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 
+      (process.env.NODE_ENV === 'production' 
+        ? `https://${process.env.DOMAIN || 'flipychat.com'}/api`
+        : 'http://localhost:3001/api');
+
+    // Fetch users and rooms in parallel
+    const [usersResponse, roomsResponse] = await Promise.all([
+      fetch(`${apiUrl}/user/public?limit=10`, {
+        cache: 'no-store', // Always fetch fresh data for SEO
+        headers: {
+          'Accept': 'application/json',
+        },
+      }).catch(() => null),
+      fetch(`${apiUrl}/rooms/public?limit=10`, {
+        cache: 'no-store', // Always fetch fresh data for SEO
+        headers: {
+          'Accept': 'application/json',
+        },
+      }).catch(() => null),
+    ]);
+
+    const users = usersResponse?.ok 
+      ? await usersResponse.json().then(data => data.success ? data.users : []).catch(() => [])
+      : [];
+    
+    const rooms = roomsResponse?.ok
+      ? await roomsResponse.json().then(data => data.success ? data.rooms : []).catch(() => [])
+      : [];
+
+    return { users, rooms };
+  } catch (error) {
+    console.error('Error fetching server-side data:', error);
+    return { users: [], rooms: [] };
+  }
+}
+
+export default async function LandingPage() {
+  // Fetch data server-side for SEO
+  const { users, rooms } = await getServerSideData();
 
   // Structured Data for SEO
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',
-    name: 'Flipy Chat',
-    description: 'Experience seamless communication with Flipy Chat. Create rooms, broadcast voice messages, share moments, and build meaningful connections.',
+    name: 'FlipyChat',
+    description: 'Chat with random strangers instantly on FlipyChat! Use our free chat alternative to video chat with strangers and meet cool new people anywhere, anytime.',
     url: 'https://flipychat.com',
     applicationCategory: 'CommunicationApplication',
     operatingSystem: 'Web, iOS, Android',
@@ -105,16 +174,16 @@ export default function LandingPage() {
         <section className="pt-20 pb-24 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto text-center">
             <Badge className="mb-4 text-sm px-4 py-1 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/50 text-blue-300" variant="secondary">
-              🎉 New: Voice Broadcasting Feature
+              ✨ 100% Free • No Registration Required
             </Badge>
             <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-6 leading-tight">
-              Connect, Chat, and Collaborate
+              Chat with Random Strangers
               <br />
-              <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Anywhere, Anytime</span>
+              <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Instantly & Anonymously</span>
             </h1>
             <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
-              Experience seamless communication with our modern chat platform. Create rooms, broadcast voice messages, 
-              share moments, and build meaningful connections with people around the world.
+              The best free chat alternative to video chat with strangers! Meet cool new people from around the world instantly. 
+              No signup required - just start chatting and make instant connections anywhere, anytime.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link href="/login">
@@ -136,10 +205,10 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="text-4xl font-bold text-white mb-4">
-                Everything You Need to Stay Connected
+                Everything You Need for Random Chat
               </h2>
               <p className="text-xl text-gray-300">
-                Powerful features designed for modern communication
+                Powerful features to meet strangers and chat instantly
               </p>
             </div>
 
@@ -150,9 +219,9 @@ export default function LandingPage() {
                   <div className="h-12 w-12 bg-blue-500/20 rounded-lg flex items-center justify-center mb-4">
                     <MessageCircle className="h-6 w-6 text-blue-400" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-2 text-white">Real-time Messaging</h3>
+                  <h3 className="text-xl font-semibold mb-2 text-white">Instant Random Chat</h3>
                   <p className="text-gray-400">
-                    Send and receive messages instantly with our lightning-fast chat system.
+                    Connect with random strangers instantly. No waiting, no delays - just start chatting right away!
                   </p>
                 </CardContent>
               </Card>
@@ -163,9 +232,9 @@ export default function LandingPage() {
                   <div className="h-12 w-12 bg-purple-500/20 rounded-lg flex items-center justify-center mb-4">
                     <Users className="h-6 w-6 text-purple-400" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-2 text-white">Create Rooms</h3>
+                  <h3 className="text-xl font-semibold mb-2 text-white">Meet New People</h3>
                   <p className="text-gray-400">
-                    Organize conversations with custom rooms for teams, friends, or communities.
+                    Discover interesting strangers from different countries and cultures. Every chat is a new adventure!
                   </p>
                 </CardContent>
               </Card>
@@ -176,9 +245,9 @@ export default function LandingPage() {
                   <div className="h-12 w-12 bg-green-500/20 rounded-lg flex items-center justify-center mb-4">
                     <Radio className="h-6 w-6 text-green-400" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-2 text-white">Voice Broadcasting</h3>
+                  <h3 className="text-xl font-semibold mb-2 text-white">Video Chat Ready</h3>
                   <p className="text-gray-400">
-                    Broadcast your voice in real-time to all room members with high-quality audio.
+                    Prepare for video calls with strangers. See who you're chatting with and make real connections.
                   </p>
                 </CardContent>
               </Card>
@@ -189,9 +258,9 @@ export default function LandingPage() {
                   <div className="h-12 w-12 bg-orange-500/20 rounded-lg flex items-center justify-center mb-4">
                     <Mic className="h-6 w-6 text-orange-400" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-2 text-white">Voice Messages</h3>
+                  <h3 className="text-xl font-semibold mb-2 text-white">100% Free Chat</h3>
                   <p className="text-gray-400">
-                    Record and share voice messages for more personal communication.
+                    Completely free to use - no hidden fees, no premium subscriptions. Just pure random chatting fun!
                   </p>
                 </CardContent>
               </Card>
@@ -202,9 +271,9 @@ export default function LandingPage() {
                   <div className="h-12 w-12 bg-red-500/20 rounded-lg flex items-center justify-center mb-4">
                     <Heart className="h-6 w-6 text-red-400" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-2 text-white">Follow System</h3>
+                  <h3 className="text-xl font-semibold mb-2 text-white">Anonymous & Safe</h3>
                   <p className="text-gray-400">
-                    Follow users, build your network, and stay updated with their activities.
+                    Chat anonymously with strangers. Your privacy is protected - share only what you want.
                   </p>
                 </CardContent>
               </Card>
@@ -215,9 +284,9 @@ export default function LandingPage() {
                   <div className="h-12 w-12 bg-indigo-500/20 rounded-lg flex items-center justify-center mb-4">
                     <Shield className="h-6 w-6 text-indigo-400" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-2 text-white">Safe & Secure</h3>
+                  <h3 className="text-xl font-semibold mb-2 text-white">Safe Community</h3>
                   <p className="text-gray-400">
-                    Your privacy matters. Age-restricted (16+) with strict content policies.
+                    Age-restricted (16+) platform with strict moderation. Your safety is our top priority.
                   </p>
                 </CardContent>
               </Card>
@@ -225,8 +294,8 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Users and Rooms Sections - Client-side fetched */}
-        <UsersAndRoomsSection />
+        {/* Users and Rooms Sections - Server-side fetched for SEO */}
+        <UsersAndRoomsSection initialUsers={users} initialRooms={rooms} />
 
         {/* Why Choose Us Section */}
         <section className="py-20 px-4 sm:px-6 lg:px-8">
@@ -234,35 +303,35 @@ export default function LandingPage() {
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div>
                 <h2 className="text-4xl font-bold text-white mb-6">
-                  Why Choose Flipy Chat?
+                  Why Choose FlipyChat?
                 </h2>
                 <div className="space-y-4">
                   <div className="flex items-start space-x-3">
                     <CheckCircle2 className="h-6 w-6 text-green-400 mt-1 flex-shrink-0" />
                     <div>
-                      <h3 className="font-semibold text-lg text-white">Easy to Use</h3>
-                      <p className="text-gray-400">Intuitive interface designed for everyone</p>
+                      <h3 className="font-semibold text-lg text-white">Instant Connection</h3>
+                      <p className="text-gray-400">No signup needed - start chatting with strangers in seconds</p>
                     </div>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle2 className="h-6 w-6 text-green-400 mt-1 flex-shrink-0" />
                     <div>
-                      <h3 className="font-semibold text-lg text-white">Lightning Fast</h3>
-                      <p className="text-gray-400">Real-time messaging with zero lag</p>
+                      <h3 className="font-semibold text-lg text-white">100% Free</h3>
+                      <p className="text-gray-400">Completely free random chat - no charges, ever</p>
                     </div>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle2 className="h-6 w-6 text-green-400 mt-1 flex-shrink-0" />
                     <div>
-                      <h3 className="font-semibold text-lg text-white">Cross-Platform</h3>
-                      <p className="text-gray-400">Works seamlessly on all devices</p>
+                      <h3 className="font-semibold text-lg text-white">Global Reach</h3>
+                      <p className="text-gray-400">Meet strangers from countries around the world</p>
                     </div>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle2 className="h-6 w-6 text-green-400 mt-1 flex-shrink-0" />
                     <div>
-                      <h3 className="font-semibold text-lg text-white">Privacy First</h3>
-                      <p className="text-gray-400">Your data is encrypted and secure</p>
+                      <h3 className="font-semibold text-lg text-white">Anonymous Chat</h3>
+                      <p className="text-gray-400">Chat with strangers without revealing your identity</p>
                     </div>
                   </div>
                 </div>
@@ -389,12 +458,12 @@ export default function LandingPage() {
         {/* CTA Section */}
         <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 to-purple-600">
           <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-4xl font-bold text-white mb-6">
-              Ready to Start Connecting?
-            </h2>
-            <p className="text-xl text-blue-100 mb-8">
-              Join thousands of users already chatting on Flipy Chat. It's free to get started!
-            </p>
+              <h2 className="text-4xl font-bold text-white mb-6">
+                Ready to Chat with Strangers?
+              </h2>
+              <p className="text-xl text-blue-100 mb-8">
+                Join thousands of users already meeting new people on FlipyChat. Start your random chat adventure now - it's 100% free!
+              </p>
             <Link href="/login">
               <Button size="lg" variant="secondary" className="text-lg px-8 py-6 bg-white hover:bg-gray-100 text-gray-900">
                 Create Your Account <ArrowRight className="ml-2 h-5 w-5" />
@@ -412,7 +481,7 @@ export default function LandingPage() {
                   <img src="/logo-icon.png" alt="Flipy Chat" className="h-8 w-8 rounded-lg mb-4 cursor-pointer hover:opacity-80 transition-opacity" />
                 </Link>
                 <p className="text-sm text-gray-500">
-                  Connecting people through modern communication
+                  Chat with random strangers instantly - the best free chat alternative
                 </p>
               </div>
               <div>
@@ -438,7 +507,7 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="border-t border-gray-800 pt-8 text-center text-sm text-gray-500">
-              <p>&copy; {new Date().getFullYear()} Flipy Chat. All rights reserved. This platform is for users 16 years and older.</p>
+              <p>&copy; {new Date().getFullYear()} FlipyChat. All rights reserved. This platform is for users 16 years and older.</p>
             </div>
           </div>
         </footer>

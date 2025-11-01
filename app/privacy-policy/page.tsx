@@ -13,17 +13,41 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
-// SEO Metadata
+// SEO Metadata with enhanced social sharing support
 export const metadata: Metadata = {
-  title: 'Privacy Policy & Terms - Flipy Chat | Age 16+ | Safe Platform',
-  description: 'Read Flipy Chat\'s Privacy Policy and Terms of Service. Strictly 16+ age restriction. Zero-tolerance policy for inappropriate content. Learn about our commitment to safety, security, and privacy.',
-  keywords: ['flipy chat privacy', 'chat app terms', 'age restriction 16+', 'safe chat platform', 'content policy', 'data security'],
+  title: 'Privacy Policy & Terms - FlipyChat | Age 16+ | Safe Platform',
+  description: 'Read FlipyChat\'s Privacy Policy and Terms of Service. Strictly 16+ age restriction. Zero-tolerance policy for inappropriate content. Learn about our commitment to safety, security, and privacy.',
   openGraph: {
-    title: 'Privacy Policy - Flipy Chat | Safe & Secure',
-    description: 'Flipy Chat is a safe platform for users 16+. Learn about our strict content policies, age verification, and commitment to privacy.',
+    title: 'Privacy Policy - FlipyChat | Safe & Secure',
+    description: 'FlipyChat is a safe platform for users 16+. Learn about our strict content policies, age verification, and commitment to privacy.',
+    url: 'https://flipychat.com/privacy-policy',
+    siteName: 'FlipyChat',
     type: 'website',
+    locale: 'en_US',
+    images: [
+      {
+        url: 'https://flipychat.com/logo-icon.png',
+        width: 1200,
+        height: 630,
+        alt: 'Privacy Policy - FlipyChat',
+        type: 'image/png',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Privacy Policy - FlipyChat | Safe & Secure',
+    description: 'FlipyChat is a safe platform for users 16+. Learn about our strict content policies, age verification, and commitment to privacy.',
+    images: ['https://flipychat.com/logo-icon.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
+
+// Enable server-side rendering (static page, can be cached)
+export const revalidate = 3600; // Revalidate every hour
 
 export default function PrivacyPolicyPage() {
   return (

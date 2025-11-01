@@ -23,12 +23,32 @@ export function UsersAndRoomsSection({ initialUsers = [], initialRooms = [] }: U
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(false);
 
-  // Fetch users client-side
+  // Only fetch users client-side if we don't have initial data (for real-time updates)
   useEffect(() => {
+    // Skip if we already have initial data from server
+    if (initialUsers.length > 0) {
+      // Still fetch for updates, but don't show loading
+      const fetchUsers = async () => {
+        try {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+          const response = await fetch(`${apiUrl}/user/public?limit=10`);
+          const data = await response.json();
+          if (data.success && data.users) {
+            setUsers(data.users);
+          }
+        } catch (error) {
+          console.error('Error fetching users:', error);
+        }
+      };
+      fetchUsers();
+      return;
+    }
+
+    // Only show loading if we don't have initial data
     const fetchUsers = async () => {
       try {
         setLoadingUsers(true);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
         const response = await fetch(`${apiUrl}/user/public?limit=10`);
         const data = await response.json();
         if (data.success && data.users) {
@@ -42,10 +62,30 @@ export function UsersAndRoomsSection({ initialUsers = [], initialRooms = [] }: U
     };
 
     fetchUsers();
-  }, []);
+  }, [initialUsers.length]);
 
-  // Fetch rooms client-side
+  // Only fetch rooms client-side if we don't have initial data (for real-time updates)
   useEffect(() => {
+    // Skip if we already have initial data from server
+    if (initialRooms.length > 0) {
+      // Still fetch for updates, but don't show loading
+      const fetchRooms = async () => {
+        try {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+          const response = await fetch(`${apiUrl}/rooms/public?limit=10`);
+          const data = await response.json();
+          if (data.success && data.rooms) {
+            setRooms(data.rooms);
+          }
+        } catch (error) {
+          console.error('Error fetching rooms:', error);
+        }
+      };
+      fetchRooms();
+      return;
+    }
+
+    // Only show loading if we don't have initial data
     const fetchRooms = async () => {
       try {
         setLoadingRooms(true);
@@ -63,7 +103,7 @@ export function UsersAndRoomsSection({ initialUsers = [], initialRooms = [] }: U
     };
 
     fetchRooms();
-  }, []);
+  }, [initialRooms.length]);
 
   return (
     <>

@@ -14,17 +14,41 @@ import {
   Zap
 } from 'lucide-react';
 
-// SEO Metadata
+// SEO Metadata with enhanced social sharing support
 export const metadata: Metadata = {
-  title: 'About Us - Flipy Chat | Our Mission & Values',
-  description: 'Learn about Flipy Chat\'s mission to bring people together through modern, secure, and intuitive communication. Discover our core values and what makes us different.',
-  keywords: ['about flipy chat', 'chat app mission', 'safe chat platform', 'communication platform', 'chat app values'],
+  title: 'About Us - FlipyChat | Our Mission & Values',
+  description: 'Learn about FlipyChat\'s mission to bring people together through modern, secure, and intuitive communication. Discover our core values and what makes us different.',
   openGraph: {
-    title: 'About Flipy Chat - Bringing People Together',
+    title: 'About FlipyChat - Bringing People Together',
     description: 'Learn about our mission to provide a safe, modern platform for meaningful connections through chat, voice broadcasting, and community building.',
+    url: 'https://flipychat.com/about',
+    siteName: 'FlipyChat',
     type: 'website',
+    locale: 'en_US',
+    images: [
+      {
+        url: 'https://flipychat.com/logo-icon.png',
+        width: 1200,
+        height: 630,
+        alt: 'About FlipyChat',
+        type: 'image/png',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'About FlipyChat - Bringing People Together',
+    description: 'Learn about our mission to provide a safe, modern platform for meaningful connections through chat, voice broadcasting, and community building.',
+    images: ['https://flipychat.com/logo-icon.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
+
+// Enable server-side rendering (static page, can be cached)
+export const revalidate = 3600; // Revalidate every hour
 
 export default function AboutPage() {
   return (
