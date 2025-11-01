@@ -5,15 +5,23 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
-    // Configure transporter with Gmail SMTP or custom SMTP
-    // For development, we'll use a configuration that can be set via environment variables
+    // Configure transporter with SMTP settings
+    // Supports Gmail, Hostinger, and other SMTP providers
+    const port = parseInt(process.env.EMAIL_PORT || '587');
+    const isSecurePort = port === 465; // Port 465 requires SSL/TLS
+    
     this.transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.EMAIL_PORT || '587'),
-      secure: false, // true for 465, false for other ports
+      port: port,
+      secure: isSecurePort, // true for 465 (SSL), false for 587 (STARTTLS)
       auth: {
-        user: process.env.EMAIL_USER, // Your email
-        pass: process.env.EMAIL_PASSWORD, // Your email password or app-specific password
+        user: process.env.EMAIL_USER, // Your email address
+        pass: process.env.EMAIL_PASSWORD, // Your email password
+      },
+      // Additional options for better compatibility
+      tls: {
+        // Do not fail on invalid certificates
+        rejectUnauthorized: false,
       },
     });
   }
