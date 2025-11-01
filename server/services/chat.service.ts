@@ -160,7 +160,7 @@ export const chatService = {
       const chatMessage = new ChatMessageModel({
         roomId,
         userId,
-        username: user.username || user.mobileNumber,
+        username: user.username,
         message,
         messageType,
         imageUrl,
@@ -172,7 +172,7 @@ export const chatService = {
       console.log('💾 Saving message to database:', {
         roomId,
         userId,
-        username: user.username || user.mobileNumber,
+        username: user.username,
         message: message.substring(0, 50) + '...',
         messageType
       });

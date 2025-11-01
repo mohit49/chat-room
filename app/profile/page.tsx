@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DatePicker } from '@/components/ui/date-picker';
 import AvatarUploader from '@/components/profile/AvatarUploader';
 import UsernameInput from '@/components/profile/UsernameInput';
-import MobileNumberUpdate from '@/components/profile/MobileNumberUpdate';
+// Email authentication - mobile number update removed
 import LocationUpdate from '@/components/profile/LocationUpdate';
 import { NotificationSettings } from '@/components/notifications/NotificationSettings';
 import { EnhancedNotificationSettings } from '@/components/notifications/EnhancedNotificationSettings';
@@ -68,7 +68,7 @@ export default function ProfilePage() {
   const [savingGender, setSavingGender] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [originalUsername, setOriginalUsername] = useState(''); // Track original username
   const [isUsernameValid, setIsUsernameValid] = useState(true);
@@ -109,7 +109,7 @@ export default function ProfilePage() {
       try {
         const response = await api.getProfile(token);
         if (response.success && response.user) {
-          setMobileNumber(response.user.mobileNumber);
+          setEmail(response.user.email);
           const currentUsername = response.user.username || '';
           setUsername(currentUsername);
           setOriginalUsername(currentUsername); // Store original username
@@ -360,7 +360,7 @@ export default function ProfilePage() {
               currentImage={profile.profilePicture?.type === 'upload' ? profile.profilePicture.url : undefined}
               avatarStyle={profile.profilePicture?.avatarStyle}
               avatarSeed={profile.profilePicture?.seed}
-              username={mobileNumber}
+              username={email}
               onImageChange={(imageData, type, style, seed) => {
                 setProfile({
                   ...profile,
@@ -379,7 +379,7 @@ export default function ProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle>Personal Information</CardTitle>
-            <CardDescription>Mobile: {mobileNumber}</CardDescription>
+            <CardDescription>Email: {email}</CardDescription>
             {user?.id && (
               <div className="mt-3">
                 <FollowListDialog
@@ -507,14 +507,7 @@ export default function ProfilePage() {
           onLocationUpdate={handleUpdateLocation}
         />
 
-        {/* Mobile Number Update */}
-        <MobileNumberUpdate
-          currentMobileNumber={mobileNumber}
-          onSuccess={() => {
-            // Refresh profile data
-            window.location.reload();
-          }}
-        />
+        {/* Email is read-only - cannot be changed after registration */}
 
         {/* Notification Settings */}
         <EnhancedNotificationSettings />

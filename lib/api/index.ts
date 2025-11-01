@@ -5,8 +5,10 @@ import { API_ENDPOINTS } from '@/constants';
 import {
   AuthResponse,
   ApiResponse,
+  RegisterRequest,
   LoginRequest,
-  SendOTPRequest,
+  VerifyEmailRequest,
+  ResendVerificationRequest,
   UpdateProfileRequest,
   UpdateLocationRequest,
 } from '@/types';
@@ -16,12 +18,28 @@ import { getAuthToken } from '../auth';
 
 export const api = {
   // Auth endpoints
-  async sendOTP(mobileNumber: string): Promise<ApiResponse> {
-    return apiClient.post(API_ENDPOINTS.AUTH.SEND_OTP, { mobileNumber });
+  async register(email: string, password: string, username: string): Promise<AuthResponse> {
+    return apiClient.post('/auth/register', { email, password, username });
   },
 
-  async login(mobileNumber: string, otp: string): Promise<AuthResponse> {
-    return apiClient.post(API_ENDPOINTS.AUTH.LOGIN, { mobileNumber, otp });
+  async login(email: string, password: string): Promise<AuthResponse> {
+    return apiClient.post(API_ENDPOINTS.AUTH.LOGIN, { email, password });
+  },
+
+  async verifyEmail(email: string, otp: string): Promise<ApiResponse> {
+    return apiClient.post('/auth/verify-email', { email, otp });
+  },
+
+  async resendVerificationEmail(email: string): Promise<ApiResponse> {
+    return apiClient.post('/auth/resend-verification', { email });
+  },
+
+  async getVerificationStatus(): Promise<ApiResponse> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    return apiClient.get('/auth/verification-status', token);
   },
 
   async logout(): Promise<ApiResponse> {
@@ -41,13 +59,7 @@ export const api = {
     return apiClient.put(API_ENDPOINTS.USER.LOCATION, data, token);
   },
 
-  async updateMobileNumber(newMobileNumber: string, otp: string): Promise<ApiResponse> {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error('Authentication token not found');
-    }
-    return apiClient.put(API_ENDPOINTS.USER.UPDATE_MOBILE, { newMobileNumber, otp }, token);
-  },
+  // Mobile number update removed - users now use email authentication
 
   async getUsersWithMessages(): Promise<ApiResponse> {
     const token = getAuthToken();

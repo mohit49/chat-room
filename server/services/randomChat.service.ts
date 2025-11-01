@@ -32,12 +32,12 @@ class RandomChatService {
       }
 
       const users = await UserModel.find(query)
-        .select('username mobileNumber profile')
+        .select('username email profile')
         .lean();
 
       return users.map(user => ({
         id: user._id.toString(),
-        username: user.username || user.mobileNumber,
+        username: user.username,
         profile: {
           profilePicture: user.profile?.profilePicture,
           gender: user.profile?.gender,

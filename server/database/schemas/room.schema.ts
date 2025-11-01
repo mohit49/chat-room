@@ -3,7 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IRoomMember {
   userId: string;
   username: string;
-  mobileNumber: string;
+  email: string;
   role: 'admin' | 'editor' | 'viewer';
   status: 'active' | 'pending';
   joinedAt: Date;
@@ -43,7 +43,7 @@ const RoomMemberSchema = new Schema<IRoomMember>({
     type: String,
     required: true
   },
-  mobileNumber: {
+  email: {
     type: String,
     required: true
   },

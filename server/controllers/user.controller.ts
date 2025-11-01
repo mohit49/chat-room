@@ -37,9 +37,12 @@ export class UserController {
         success: true,
         user: {
           id: user.id,
-          mobileNumber: user.mobileNumber,
+          email: user.email,
           username: user.username,
+          emailVerified: user.emailVerified,
           profile: user.profile,
+          lastSeen: user.lastSeen,
+          onlineStatus: user.onlineStatus,
         },
       });
     } catch (error) {
@@ -67,8 +70,9 @@ export class UserController {
         success: true,
         user: {
           id: user.id,
-          mobileNumber: user.mobileNumber,
+          email: user.email,
           username: user.username,
+          emailVerified: user.emailVerified,
           profile: user.profile,
         },
       });
@@ -92,8 +96,9 @@ export class UserController {
         success: true,
         user: {
           id: user.id,
-          mobileNumber: user.mobileNumber,
+          email: user.email,
           username: user.username,
+          emailVerified: user.emailVerified,
           profile: user.profile,
         },
       });
@@ -134,7 +139,7 @@ export class UserController {
           return {
             id: user.id,
             username: user.username,
-            mobileNumber: user.mobileNumber,
+            email: user.email,
             profile: {
               profilePicture: user.profile.profilePicture,
               location: user.profile.location,
@@ -199,7 +204,8 @@ export class UserController {
         user: {
           id: user.id,
           username: user.username,
-          mobileNumber: user.mobileNumber,
+          email: user.email,
+          emailVerified: user.emailVerified,
           profile: user.profile,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,

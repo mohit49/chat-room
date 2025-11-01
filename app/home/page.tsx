@@ -29,6 +29,7 @@ import { api } from '@/lib/api';
 import { BannerCarousel } from '@/components/home/BannerCarousel';
 import BroadcastCard from '@/components/home/BroadcastCard';
 import InstantChatSection from '@/components/home/InstantChatSection';
+import { EmailVerificationBanner } from '@/components/auth/EmailVerificationBanner';
 
 interface Room {
   id: string;
@@ -59,7 +60,7 @@ interface BroadcastState {
 }
 
 export default function HomePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, emailVerified } = useAuth();
   const { socket } = useSocket();
   const { activeBroadcast, isListening, isMuted, toggleListen, toggleMute, startBroadcast: globalStartBroadcast, stopBroadcast } = useBroadcast();
   const router = useRouter();
@@ -253,6 +254,11 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Email Verification Banner - Shows first if email not verified */}
+      <div className="max-w-3xl mx-auto px-4 pt-4">
+        <EmailVerificationBanner />
+      </div>
+      
       {/* Profile Completion Banner */}
       <ProfileCompletionBanner isComplete={isComplete} missingFields={missingFields} />
       
@@ -315,14 +321,14 @@ export default function HomePage() {
                     user.profile.profilePicture?.type === 'upload' 
                       ? user.profile.profilePicture.url 
                       : user.profile.profilePicture?.type === 'avatar'
-                      ? `https://api.dicebear.com/7.x/${user.profile.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${user.profile.profilePicture.seed || user.mobileNumber}`
+                      ? `https://api.dicebear.com/7.x/${user.profile.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${user.profile.profilePicture.seed || user.email}`
                       : undefined
                   }
                 />
                 <AvatarFallback className="text-lg bg-primary text-primary-foreground">
                   {user.profile.profilePicture?.type === 'avatar' 
                     ? '🎭' 
-                    : user.username?.charAt(0).toUpperCase() || user.mobileNumber?.charAt(0)}
+                    : user.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               

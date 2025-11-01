@@ -11,7 +11,7 @@ export interface CreateRoomData {
   };
   createdBy: string;
   createdByUsername: string;
-  createdByMobileNumber: string;
+  createdByEmail: string;
   createdByProfilePicture?: {
     type: 'upload' | 'avatar';
     url?: string;
@@ -33,7 +33,7 @@ export interface UpdateRoomData {
 
 export interface AddMemberData {
   roomId: string;
-  mobileNumber?: string;
+  email?: string;
   username?: string;
   addedBy: string;
 }

@@ -194,19 +194,19 @@ export default function AppHeader({
                       user.profile.profilePicture?.type === 'upload' 
                         ? user.profile.profilePicture.url 
                         : user.profile.profilePicture?.type === 'avatar'
-                        ? `https://api.dicebear.com/7.x/${user.profile.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${user.profile.profilePicture.seed || user.mobileNumber}`
+                        ? `https://api.dicebear.com/7.x/${user.profile.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${user.profile.profilePicture.seed || user.email}`
                         : undefined
                     }
                   />
                   <AvatarFallback className="text-sm bg-primary text-primary-foreground">
                     {user.profile.profilePicture?.type === 'avatar' 
                       ? '🎭' 
-                      : user.username?.charAt(0).toUpperCase() || user.mobileNumber?.charAt(0)}
+                      : user.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="hidden sm:flex flex-col items-start">
                   <span className="text-sm font-medium text-foreground">@{user.username}</span>
-                  <span className="text-xs text-muted-foreground">{user.mobileNumber}</span>
+                  <span className="text-xs text-muted-foreground">{user.email}</span>
                 </div>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               </Button>
@@ -216,7 +216,7 @@ export default function AppHeader({
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-medium leading-none">@{user.username}</p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    {user.mobileNumber}
+                    {user.email}
                   </p>
                 </div>
               </DropdownMenuLabel>

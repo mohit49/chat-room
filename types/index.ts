@@ -2,9 +2,13 @@
 
 export interface User {
   id: string;
-  mobileNumber: string;
-  username?: string;
+  email: string;
+  username: string; // Now required
+  password?: string; // Never sent to client, only used in registration
+  emailVerified: boolean;
   profile: UserProfile;
+  lastSeen?: Date;
+  onlineStatus?: OnlineStatus;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,17 +54,6 @@ export type Gender = 'male' | 'female' | 'other' | '';
 
 export type OnlineStatus = 'online' | 'away' | 'offline';
 
-export interface User {
-  id: string;
-  mobileNumber: string;
-  username?: string;
-  profile: UserProfile;
-  lastSeen?: Date;
-  onlineStatus?: OnlineStatus;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
@@ -76,13 +69,24 @@ export interface AuthResponse extends ApiResponse {
   token?: string;
 }
 
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  username: string;
+}
+
 export interface LoginRequest {
-  mobileNumber: string;
+  email: string;
+  password: string;
+}
+
+export interface VerifyEmailRequest {
+  email: string;
   otp: string;
 }
 
-export interface SendOTPRequest {
-  mobileNumber: string;
+export interface ResendVerificationRequest {
+  email: string;
 }
 
 export interface UpdateProfileRequest {

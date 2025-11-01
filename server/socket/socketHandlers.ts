@@ -115,7 +115,7 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
             socketId: socket.id,
             sessionId,
             userId: socket.userId,
-            username: user.username || user.mobileNumber,
+            username: user.username,
             connectedAt: new Date()
           });
           console.log(`📋 Session stored: ${sessionId} → User: ${socket.userId}`);
@@ -127,7 +127,7 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
         // Send connection confirmation with session info
         socket.emit('connection_confirmed', {
           userId: socket.userId,
-          username: user.username || user.mobileNumber,
+          username: user.username,
           socketId: socket.id,
           sessionId,
           message: 'Successfully connected to notification service'
@@ -180,14 +180,14 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
         });
         
         // Notify other users that this user came online
-        const userForBroadcast = await User.findById(socket.userId).select('username mobileNumber profile').lean();
+        const userForBroadcast = await User.findById(socket.userId).select('username email profile').lean();
         if (userForBroadcast) {
           socket.broadcast.emit('user_online', {
             userId: socket.userId,
             user: {
               id: userForBroadcast._id.toString(),
-              username: userForBroadcast.username || userForBroadcast.mobileNumber,
-              mobileNumber: userForBroadcast.mobileNumber,
+              username: userForBroadcast.username,
+              email: userForBroadcast.email,
               profile: {
                 profilePicture: userForBroadcast.profile?.profilePicture,
                 location: {
@@ -666,14 +666,14 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
         
         // Fetch user details from database
         const users = await User.find({ _id: { $in: onlineUserIds } })
-          .select('username mobileNumber profile')
+          .select('username email profile')
           .lean();
         
         // Format users for response
         const onlineUsers = users.map(user => ({
           id: user._id.toString(),
-          username: user.username || user.mobileNumber,
-          mobileNumber: user.mobileNumber,
+          username: user.username,
+          email: user.email,
           profile: {
             profilePicture: user.profile?.profilePicture,
             location: {
@@ -946,7 +946,7 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
         randomChatWaitingQueue.set(socket.userId, {
           userId: socket.userId,
           socketId: socket.id,
-          username: user.username || user.mobileNumber,
+          username: user.username,
           profile: {
             profilePicture: user.profile?.profilePicture,
             gender: user.profile?.gender,
@@ -1161,12 +1161,12 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
         socket.emit('random_chat_match_found', {
           sessionId: session.sessionId,
           partner: {
-            id: partnerUser._id.toString(),
+            id: partnerUser.id,
             username: partnerUser.username,
             profile: {
-              profilePicture: partnerUser.profilePicture,
-              gender: partnerUser.gender || 'not specified',
-              location: partnerUser.location || {}
+              profilePicture: partnerUser.profile?.profilePicture,
+              gender: partnerUser.profile?.gender || 'not specified',
+              location: partnerUser.profile?.location || {}
             }
           }
         });
@@ -1174,12 +1174,12 @@ export const setupSocketHandlers = (io: SocketIOServer) => {
         io.to(partnerSocketId).emit('random_chat_match_found', {
           sessionId: session.sessionId,
           partner: {
-            id: currentUser._id.toString(),
+            id: currentUser.id,
             username: currentUser.username,
             profile: {
-              profilePicture: currentUser.profilePicture,
-              gender: currentUser.gender || 'not specified',
-              location: currentUser.location || {}
+              profilePicture: currentUser.profile?.profilePicture,
+              gender: currentUser.profile?.gender || 'not specified',
+              location: currentUser.profile?.location || {}
             }
           }
         });

@@ -89,22 +89,22 @@ export const validateAddMember = (data: any) => {
       .trim()
       .min(3)
       .max(30)
-      .optional() // Changed to optional - can use mobileNumber instead
+      .optional() // Can use email instead
       .allow('')
       .messages({
         'string.empty': 'Username is required',
         'string.min': 'Username must be at least 3 characters',
         'string.max': 'Username must not exceed 30 characters'
       }),
-    mobileNumber: Joi.string()
+    email: Joi.string()
+      .email()
       .optional()
-      .pattern(/^\+?[1-9]\d{1,14}$/)
       .messages({
-        'string.pattern.base': 'Invalid mobile number format'
+        'string.email': 'Invalid email format'
       })
-  }).or('username', 'mobileNumber') // Require at least one of username or mobileNumber
+  }).or('username', 'email') // Require at least one of username or email
   .messages({
-    'object.missing': 'Either username or mobile number is required'
+    'object.missing': 'Either username or email is required'
   });
 
   return schema.validate(data);

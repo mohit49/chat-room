@@ -15,7 +15,7 @@ import { api } from '@/lib/api';
 interface User {
   id: string;
   username: string;
-  mobileNumber: string;
+  email: string;
   profilePicture?: {
     type: 'upload' | 'avatar';
     url?: string;
@@ -290,7 +290,7 @@ export default function SearchBox({ className = '' }: SearchBoxProps) {
                                         user.profilePicture?.type === 'upload'
                                           ? user.profilePicture.url
                                           : user.profilePicture?.type === 'avatar'
-                                          ? `https://api.dicebear.com/7.x/${user.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${user.profilePicture.seed || user.mobileNumber}`
+                                          ? `https://api.dicebear.com/7.x/${user.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${user.profilePicture.seed || user.email}`
                                           : undefined
                                       }
                                     />

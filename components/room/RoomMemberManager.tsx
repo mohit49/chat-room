@@ -16,7 +16,7 @@ export type RoomRole = 'admin' | 'editor' | 'viewer';
 export interface RoomMember {
   userId: string;
   username: string;
-  mobileNumber: string;
+  email: string;
   role: RoomRole;
   profilePicture?: {
     type: 'upload' | 'avatar';
@@ -31,7 +31,7 @@ interface RoomMemberManagerProps {
   members: RoomMember[];
   currentUserRole: RoomRole;
   currentUserId: string;
-  onAddMember: (mobileNumber: string) => void;
+  onAddMember: (usernameOrEmail: string) => void;
   onRemoveMember: (memberId: string) => void;
   onChangeRole: (memberId: string, newRole: RoomRole) => void;
   loading?: boolean;

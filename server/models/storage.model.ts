@@ -12,7 +12,7 @@ class StorageModel {
     return database.getConnectionStatus();
   }
 
-  async createUser(data: { mobileNumber: string; profile: Partial<UserProfile>; username?: string }): Promise<User> {
+  async createUser(data: { email: string; password: string; username: string; profile: Partial<UserProfile> }): Promise<User> {
     if (this.useDB()) {
       return await userModelDB.createUser(data);
     }
@@ -21,8 +21,10 @@ class StorageModel {
     const id = `user_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const user: User = {
       id,
-      mobileNumber: data.mobileNumber,
+      email: data.email,
+      password: data.password,
       username: data.username,
+      emailVerified: false,
       profile: {
         birthDate: data.profile.birthDate || '',
         age: data.profile.age || 0,
@@ -50,13 +52,23 @@ class StorageModel {
     return this.users.get(id);
   }
 
-  async getUserByMobile(mobileNumber: string): Promise<User | undefined> {
+  async getUserByEmail(email: string): Promise<User | undefined> {
     if (this.useDB()) {
-      const user = await userModelDB.getUserByMobile(mobileNumber);
+      const user = await userModelDB.getUserByEmail(email);
       return user || undefined;
     }
     return Array.from(this.users.values()).find(
-      (user) => user.mobileNumber === mobileNumber
+      (user) => user.email.toLowerCase() === email.toLowerCase()
+    );
+  }
+
+  async getUserByEmailWithPassword(email: string): Promise<User | undefined> {
+    if (this.useDB()) {
+      const user = await userModelDB.getUserByEmailWithPassword(email);
+      return user || undefined;
+    }
+    return Array.from(this.users.values()).find(
+      (user) => user.email.toLowerCase() === email.toLowerCase()
     );
   }
 
@@ -145,8 +157,25 @@ class StorageModel {
     const searchTerm = query.toLowerCase();
     return Array.from(this.users.values()).filter(user => 
       user.username?.toLowerCase().includes(searchTerm) ||
-      user.mobileNumber.includes(searchTerm)
+      user.email.toLowerCase().includes(searchTerm)
     );
+  }
+
+  async updateEmailVerification(userId: string, verified: boolean): Promise<User> {
+    if (this.useDB()) {
+      return await userModelDB.updateEmailVerification(userId, verified);
+    }
+
+    // In-memory fallback
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    user.emailVerified = verified;
+    user.updatedAt = new Date();
+    this.users.set(userId, user);
+    return user;
   }
 
   async clear(): Promise<void> {

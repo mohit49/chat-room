@@ -2,15 +2,17 @@
 
 export const API_ENDPOINTS = {
   AUTH: {
-    SEND_OTP: '/auth/send-otp',
+    REGISTER: '/auth/register',
     LOGIN: '/auth/login',
     LOGOUT: '/auth/logout',
+    VERIFY_EMAIL: '/auth/verify-email',
+    RESEND_VERIFICATION: '/auth/resend-verification',
+    VERIFICATION_STATUS: '/auth/verification-status',
   },
   USER: {
     PROFILE: '/user/profile',
     LOCATION: '/user/location',
     SEARCH: '/user/search',
-    UPDATE_MOBILE: '/user/update-mobile',
     MESSAGES: '/user/messages',
   },
   USERNAME: {

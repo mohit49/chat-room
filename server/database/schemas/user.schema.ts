@@ -49,23 +49,39 @@ const UserProfileSchema = new Schema<UserProfile>({
 // User schema
 const UserSchema = new Schema<UserDocument>(
   {
-    mobileNumber: {
+    email: {
       type: String,
       required: true,
       unique: true,
       trim: true,
+      lowercase: true,
       index: true, // Index for faster queries
+      validate: {
+        validator: function(v: string) {
+          return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+        },
+        message: 'Invalid email format'
+      }
+    },
+    password: {
+      type: String,
+      required: true,
+      select: false, // Never return password in queries by default
+    },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     username: {
       type: String,
+      required: true, // Now required
       unique: true,
-      sparse: true, // Allows multiple null values but unique non-null values
       trim: true,
       lowercase: true,
       index: true, // Index for faster username lookups
       validate: {
         validator: function(v: string) {
-          if (!v) return true; // Allow empty/undefined
           return /^[a-z0-9][a-z0-9_\-\.!@#$%^&*()+=]{2,19}$/.test(v);
         },
         message: 'Username must be 3-20 characters, start with letter/number, and contain no spaces'

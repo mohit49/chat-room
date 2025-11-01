@@ -240,7 +240,7 @@ export const BroadcastProvider = ({ children }: BroadcastProviderProps) => {
       console.log('🌐 BroadcastContext: Setting active broadcast with roomName:', roomName);
       setActiveBroadcast({
         userId: user.id || '',
-        username: user.username || user.mobileNumber || 'Unknown',
+        username: user.username || 'Unknown',
         roomId,
         roomName
       });
@@ -249,7 +249,7 @@ export const BroadcastProvider = ({ children }: BroadcastProviderProps) => {
       socket.emit('voice_broadcast_start', {
         roomId,
         userId: user.id,
-        username: user.username || user.mobileNumber
+        username: user.username || 'Unknown'
       });
 
       console.log('✅ Global broadcast started:', roomName);

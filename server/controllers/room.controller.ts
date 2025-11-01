@@ -55,8 +55,8 @@ export const createRoom = async (req: Request, res: Response) => {
       description,
       profilePicture,
       createdBy: userId,
-      createdByUsername: user.username || user.mobileNumber,
-      createdByMobileNumber: user.mobileNumber,
+      createdByUsername: user.username,
+      createdByEmail: user.email,
       createdByProfilePicture: user.profile.profilePicture
     };
 
@@ -235,7 +235,7 @@ export const addMember = async (req: Request, res: Response) => {
     const room = await roomService.addMember({
       roomId: id,
       username: value.username,
-      mobileNumber: value.mobileNumber,
+      email: value.email,
       addedBy: userId
     });
 

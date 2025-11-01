@@ -6,74 +6,56 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { api } from '@/lib/api';
+import { Eye, EyeOff, Mail, Lock, User, CheckCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading, isAuthenticated, login } = useAuth();
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
+  const { user, loading, isAuthenticated, register, login } = useAuth();
+  const { toast } = useToast();
+  
+  // Dynamic gradient backgrounds
+  const gradients = [
+    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // Purple
+    'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', // Pink-Red
+    'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', // Blue-Cyan
+    'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', // Green-Cyan
+    'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', // Pink-Yellow
+    'linear-gradient(135deg, #30cfd0 0%, #330867 100%)', // Cyan-Purple
+    'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', // Soft Pastels
+    'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)', // Soft Pink
+    'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)', // Peach
+    'linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%)', // Coral-Blue
+    'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)', // Lavender-Blue
+    'linear-gradient(135deg, #f8b195 0%, #f67280 100%)', // Coral-Rose
+    'linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%)', // Pink-Blue
+    'linear-gradient(135deg, #fdcbf1 0%, #e6dee9 100%)', // Soft Purple
+    'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)', // Sky Blue
+  ];
+  
+  // Select random gradient on mount
+  const [backgroundGradient] = useState(() => {
+    const randomIndex = Math.floor(Math.random() * gradients.length);
+    return gradients[randomIndex];
+  });
+  
+  // Login state
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  
+  // Register state
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [registerUsername, setRegisterUsername] = useState('');
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  
+  // Common state
   const [localError, setLocalError] = useState('');
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [mockOtp, setMockOtp] = useState('');
-  const [networkInfo, setNetworkInfo] = useState<any>(null);
-
-  // Fetch network information on component mount
-  useEffect(() => {
-    const fetchNetworkInfo = async () => {
-      try {
-        // Use the API client to get the proper URL
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-        const response = await fetch(`${apiUrl}/network-info`);
-        const data = await response.json();
-        if (data.success) {
-          setNetworkInfo(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch network info:', error);
-        // Don't show error to user, just log it
-      }
-    };
-
-    fetchNetworkInfo();
-  }, []);
-
-  const handleSendOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError('');
-
-    try {
-      console.log('Sending OTP request for:', mobileNumber);
-      const data = await api.sendOTP(mobileNumber);
-      console.log('Response data:', data);
-      
-      if (data.success) {
-        setStep('otp');
-        if (data.mockOTP) {
-          setMockOtp(data.mockOTP);
-        }
-      } else {
-        setLocalError(data.error || 'Failed to send OTP');
-      }
-    } catch (err) {
-      console.error('Send OTP error:', err);
-      setLocalError('Failed to send OTP. Please try again.');
-    }
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError('');
-
-    const success = await login(mobileNumber, otp);
-    
-    if (success) {
-      console.log('Login successful, redirect will be handled automatically');
-    } else {
-      setLocalError('Login failed. Please try again.');
-    }
-  };
 
   // Show loading while checking authentication
   if (loading) {
@@ -87,183 +69,286 @@ export default function LoginPage() {
     );
   }
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLocalError('');
+
+    if (!loginEmail || !loginPassword) {
+      setLocalError('Please fill in all fields');
+      return;
+    }
+
+    const success = await login(loginEmail, loginPassword);
+    
+    if (success) {
+      console.log('Login successful, redirect will be handled automatically');
+      toast({
+        title: 'Login Successful',
+        description: 'Welcome back to FlipyChat!',
+      });
+    } else {
+      setLocalError('Invalid email or password. Please try again.');
+      toast({
+        title: 'Login Failed',
+        description: 'Invalid email or password',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLocalError('');
+
+    if (!registerEmail || !registerPassword || !registerUsername) {
+      setLocalError('Please fill in all fields');
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(registerEmail)) {
+      setLocalError('Please enter a valid email address');
+      return;
+    }
+
+    // Validate password strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+    if (registerPassword.length < 8 || !passwordRegex.test(registerPassword)) {
+      setLocalError('Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number');
+      return;
+    }
+
+    // Validate username
+    const usernameRegex = /^[a-zA-Z0-9][a-zA-Z0-9_\-\.!@#$%^&*()+=]{2,19}$/;
+    if (!usernameRegex.test(registerUsername)) {
+      setLocalError('Username must be 3-20 characters, start with letter/number, no spaces');
+      return;
+    }
+
+    const result = await register(registerEmail, registerPassword, registerUsername);
+    
+    if (result.success) {
+      setMockOtp(result.verificationOTP || '');
+      toast({
+        title: 'Registration Successful!',
+        description: 'Please check your email for the verification code.',
+      });
+      // Don't redirect - let user stay to verify email or they'll see the banner on home
+    } else {
+      setLocalError('Registration failed. Email or username may already be in use.');
+      toast({
+        title: 'Registration Failed',
+        description: 'Email or username may already be in use.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
-      <Card className="w-full max-w-md mx-4">
+    <div 
+      className="flex items-center justify-center min-h-screen md:px-4 px-0 relative overflow-hidden"
+      style={{ background: backgroundGradient }}
+    >
+      {/* Animated gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-black/20 to-transparent"></div>
+      
+      {/* Floating orbs for extra effect */}
+      <div className="absolute top-20 left-10 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-20 right-10 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      
+      <Card className="w-full max-w-md md:max-w-md relative z-10 backdrop-blur-sm bg-white/95 dark:bg-gray-900/95 shadow-2xl md:rounded-lg rounded-none min-h-screen md:min-h-0">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">Welcome</CardTitle>
+          {/* FlipyChat Logo */}
+          <div className="flex justify-center mb-0">
+            <img 
+              src="/logo-icon.png" 
+              alt="FlipyChat Logo" 
+              className="h-16 w-16 rounded-xl shadow-lg hover:scale-105 transition-transform duration-300" 
+            />
+          </div>
+          
+          <CardTitle className="text-2xl font-bold text-center">Welcome to FlipyChat</CardTitle>
           <CardDescription className="text-center">
-            {step === 'mobile' 
-              ? 'Enter your mobile number to continue'
-              : 'Enter the OTP sent to your mobile'}
+            Chat with random strangers instantly
           </CardDescription>
-          {step === 'mobile' && (
-            <div className="mt-4 space-y-4">
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  <p className="text-sm text-blue-800 font-medium">Demo Mode</p>
-                </div>
-                <p className="text-xs text-blue-700 mt-2">
-                  A random 6-digit OTP will be generated and displayed below for any mobile number you enter.
-                </p>
-              </div>
-              
-              {networkInfo && (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <p className="text-sm text-green-800 font-medium">Network Access URLs</p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="text-xs text-green-700">
-                      <p className="font-medium">Local Access:</p>
-                      <p className="font-mono bg-white px-2 py-1 rounded border">{networkInfo.localhost.frontend}</p>
-                    </div>
-                    
-                    {networkInfo.network.length > 0 && (
-                      <div className="text-xs text-green-700">
-                        <p className="font-medium">Network Access (for other devices):</p>
-                        <div className="space-y-1 mt-1">
-                          {networkInfo.network.map((ip: any, index: number) => (
-                            <div key={index} className="bg-white px-2 py-1 rounded border">
-                              <p className="font-mono">{ip.frontend}</p>
-                              <p className="text-green-600 text-xs">({ip.interface}: {ip.address})</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-                    <p className="font-medium">💡 Demo Instructions:</p>
-                    <ul className="mt-1 space-y-1">
-                      {networkInfo.demo.instructions.map((instruction: string, index: number) => (
-                        <li key={index}>{instruction}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </CardHeader>
         <CardContent>
-          {step === 'mobile' ? (
-            <form onSubmit={handleSendOTP} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="mobile">Mobile Number</Label>
-                <Input
-                  id="mobile"
-                  type="tel"
-                  placeholder="+1 234 567 8900"
-                  value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value)}
-                  required
-                />
-                {mockOtp && (
-                  <div className="p-4 bg-green-50 border-2 border-green-300 rounded-lg shadow-sm">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                      <p className="text-sm font-semibold text-green-800">Your OTP is Ready!</p>
-                    </div>
-                    <div className="bg-white p-3 rounded border border-green-200 mb-3">
-                      <p className="text-center text-2xl font-mono font-bold text-green-900 tracking-wider">
-                        {mockOtp}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-green-600">
-                        <p>⏰ Expires in 5 minutes</p>
-                        <p className="italic">For local development only</p>
-                      </div>
-                      <button
-                        type="button"
-                        className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors font-medium"
-                        onClick={() => {
-                          navigator.clipboard.writeText(mockOtp);
-                          alert(`OTP ${mockOtp} copied to clipboard!`);
-                        }}
-                      >
-                        📋 Copy OTP
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-              {localError && <p className="text-sm text-red-500">{localError}</p>}
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Sending...' : 'Send OTP'}
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="otp">Enter OTP</Label>
-                <div className="relative">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'register')} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="login">Login</TabsTrigger>
+              <TabsTrigger value="register">Register</TabsTrigger>
+            </TabsList>
+
+            {/* Login Tab */}
+            <TabsContent value="login">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="login-email" className="flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Email
+                  </Label>
                   <Input
-                    id="otp"
-                    type="text"
-                    placeholder="123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
+                    id="login-email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
                     required
-                    maxLength={6}
-                    className="pr-20"
+                    autoComplete="email"
                   />
-                  {mockOtp && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="absolute right-1 top-1 h-8 px-2 text-xs"
-                      onClick={() => setOtp(mockOtp)}
-                    >
-                      Fill
-                    </Button>
-                  )}
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="login-password" className="flex items-center gap-2">
+                    <Lock className="h-4 w-4" />
+                    Password
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="login-password"
+                      type={showLoginPassword ? 'text' : 'password'}
+                      placeholder="Enter your password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      autoComplete="current-password"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {localError && activeTab === 'login' && (
+                  <p className="text-sm text-red-500">{localError}</p>
+                )}
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? 'Logging in...' : 'Login'}
+                </Button>
+              </form>
+            </TabsContent>
+
+            {/* Register Tab */}
+            <TabsContent value="register">
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="register-email" className="flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Email
+                  </Label>
+                  <Input
+                    id="register-email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="register-username" className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Username
+                  </Label>
+                  <Input
+                    id="register-username"
+                    type="text"
+                    placeholder="johndoe"
+                    value={registerUsername}
+                    onChange={(e) => setRegisterUsername(e.target.value.toLowerCase())}
+                    required
+                    autoComplete="username"
+                    minLength={3}
+                    maxLength={20}
+                  />
+                  <p className="text-xs text-gray-500">
+                    3-20 characters, alphanumeric and special characters allowed
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="register-password" className="flex items-center gap-2">
+                    <Lock className="h-4 w-4" />
+                    Password
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="register-password"
+                      type={showRegisterPassword ? 'text' : 'password'}
+                      placeholder="Create a strong password"
+                      value={registerPassword}
+                      onChange={(e) => setRegisterPassword(e.target.value)}
+                      required
+                      autoComplete="new-password"
+                      minLength={8}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showRegisterPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    At least 8 characters with 1 uppercase, 1 lowercase, and 1 number
+                  </p>
+                </div>
+
+                {localError && activeTab === 'register' && (
+                  <p className="text-sm text-red-500">{localError}</p>
+                )}
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? 'Creating Account...' : 'Create Account'}
+                </Button>
+
+                {/* Show verification OTP in development */}
                 {mockOtp && (
-                  <div className="p-4 bg-green-50 border-2 border-green-300 rounded-lg shadow-sm">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                      <p className="text-sm font-semibold text-green-800">Demo Mode - Your OTP</p>
+                  <div className="p-4 bg-green-50 dark:bg-green-950 border-2 border-green-300 dark:border-green-700 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                        Account Created! Verification OTP:
+                      </p>
                     </div>
-                    <div className="bg-white p-3 rounded border border-green-200 mb-3">
-                      <p className="text-center text-2xl font-mono font-bold text-green-900 tracking-wider">
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded border border-green-300 dark:border-green-700 text-center">
+                      <p className="text-2xl font-mono font-bold text-green-900 dark:text-green-100 tracking-wider">
                         {mockOtp}
                       </p>
                     </div>
-                    <div className="text-xs text-green-600 text-center">
-                      <p>⏰ Expires in 5 minutes • For local development only</p>
-                    </div>
+                    <p className="text-xs text-green-700 dark:text-green-300 mt-2 text-center">
+                      You can verify your email now or later from your profile
+                    </p>
                   </div>
                 )}
-              </div>
-              {localError && <p className="text-sm text-red-500">{localError}</p>}
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setStep('mobile')}
-                  className="flex-1"
-                  disabled={loading}
-                >
-                  Back
-                </Button>
-                <Button type="submit" className="flex-1" disabled={loading}>
-                  {loading ? 'Verifying...' : 'Verify & Login'}
-                </Button>
-              </div>
-            </form>
-          )}
+              </form>
+            </TabsContent>
+          </Tabs>
+
+          <div className="mt-6 text-center text-sm text-gray-600">
+            <p>
+              By continuing, you agree to our{' '}
+              <a href="/privacy-policy" className="text-blue-600 hover:underline">
+                Terms & Privacy Policy
+              </a>
+            </p>
+            <p className="mt-2 text-xs">
+              This platform is for users 16 years and older
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 }
-
-
-

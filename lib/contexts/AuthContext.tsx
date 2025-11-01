@@ -10,9 +10,14 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
-  login: (mobileNumber: string, otp: string) => Promise<boolean>;
+  emailVerified: boolean;
+  register: (email: string, password: string, username: string) => Promise<{ success: boolean; verificationOTP?: string }>;
+  login: (email: string, password: string) => Promise<boolean>;
+  verifyEmail: (email: string, otp: string) => Promise<boolean>;
+  resendVerification: (email: string) => Promise<{ success: boolean; verificationOTP?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  refreshVerificationStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +32,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter();
 
   const isAuthenticated = !!user;
+  const emailVerified = user?.emailVerified ?? false;
 
   // Initialize authentication on mount
   useEffect(() => {
@@ -76,7 +82,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Fetch user profile
       const response = await api.getProfile(token);
       if (response.success && response.user) {
-        console.log('🔐 User authenticated:', response.user.username || response.user.mobileNumber);
+        console.log('🔐 User authenticated:', response.user.username || response.user.email);
         setUser(response.user as User);
       } else {
         console.log('🔐 Profile fetch failed, removing token');
@@ -92,15 +98,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const login = async (mobileNumber: string, otp: string): Promise<boolean> => {
+  const register = async (email: string, password: string, username: string): Promise<{ success: boolean; verificationOTP?: string }> => {
     try {
       setLoading(true);
-      const response = await api.login(mobileNumber, otp);
+      const response = await api.register(email, password, username);
       
       if (response.success && response.token && response.user) {
         setAuthToken(response.token);
         setUser(response.user as User);
-        console.log('🔐 Login successful:', response.user.username || response.user.mobileNumber);
+        console.log('🔐 Registration successful:', response.user.username);
+        return { success: true, verificationOTP: (response as any).verificationOTP };
+      } else {
+        console.log('🔐 Registration failed:', response.error);
+        return { success: false };
+      }
+    } catch (error) {
+      console.error('🔐 Registration error:', error);
+      return { success: false };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      setLoading(true);
+      const response = await api.login(email, password);
+      
+      if (response.success && response.token && response.user) {
+        setAuthToken(response.token);
+        setUser(response.user as User);
+        console.log('🔐 Login successful:', response.user.username || response.user.email);
         return true;
       } else {
         console.log('🔐 Login failed:', response.error);
@@ -111,6 +139,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return false;
     } finally {
       setLoading(false);
+    }
+  };
+
+  const verifyEmail = async (email: string, otp: string): Promise<boolean> => {
+    try {
+      const response = await api.verifyEmail(email, otp);
+      
+      if (response.success) {
+        // Refresh user data to get updated emailVerified status
+        await refreshUser();
+        console.log('🔐 Email verified successfully');
+        return true;
+      } else {
+        console.log('🔐 Email verification failed:', response.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('🔐 Email verification error:', error);
+      return false;
+    }
+  };
+
+  const resendVerification = async (email: string): Promise<{ success: boolean; verificationOTP?: string }> => {
+    try {
+      const response = await api.resendVerificationEmail(email);
+      
+      if (response.success) {
+        console.log('🔐 Verification email resent');
+        return { success: true, verificationOTP: (response as any).verificationOTP };
+      } else {
+        console.log('🔐 Resend verification failed:', response.error);
+        return { success: false };
+      }
+    } catch (error) {
+      console.error('🔐 Resend verification error:', error);
+      return { success: false };
     }
   };
 
@@ -148,13 +212,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const refreshVerificationStatus = async (): Promise<void> => {
+    try {
+      const response = await api.getVerificationStatus();
+      if (response.success && user) {
+        setUser({
+          ...user,
+          emailVerified: response.emailVerified || false,
+        });
+      }
+    } catch (error) {
+      console.error('🔐 Refresh verification status error:', error);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     loading,
     isAuthenticated,
+    emailVerified,
+    register,
     login,
+    verifyEmail,
+    resendVerification,
     logout,
     refreshUser,
+    refreshVerificationStatus,
   };
 
   return (

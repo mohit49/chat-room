@@ -39,7 +39,7 @@ export const instantChatController = {
       const { storeHistory } = req.body;
       const userId = req.userId;
       const user = req.user;
-      const userName = user?.username || user?.mobileNumber || 'User';
+      const userName = user?.username || 'User';
 
       const chat = await instantChatService.createInstantChat(
         userId,

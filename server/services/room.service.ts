@@ -38,7 +38,7 @@ class RoomServiceImpl implements RoomService {
       members: [{
         userId: data.createdBy,
         username: data.createdByUsername,
-        mobileNumber: data.createdByMobileNumber,
+        email: data.createdByEmail,
         role: 'admin',
         joinedAt: new Date(),
         profilePicture: data.createdByProfilePicture
@@ -50,7 +50,7 @@ class RoomServiceImpl implements RoomService {
   }
 
   async getRoomById(roomId: string): Promise<IRoom | null> {
-    const room = await Room.findOne({ roomId: roomId }).populate('createdBy', 'username mobileNumber');
+    const room = await Room.findOne({ roomId: roomId }).populate('createdBy', 'username email');
     return room ? (room.toJSON() as IRoom) : null;
   }
 
@@ -162,14 +162,14 @@ class RoomServiceImpl implements RoomService {
       throw new Error('You do not have permission to add members to this room');
     }
 
-    // Find user by username or mobile number
+    // Find user by username or email
     let user;
     
-    if (data.mobileNumber) {
-      // Search by mobile number
-      user = await User.findOne({ mobileNumber: data.mobileNumber });
+    if (data.email) {
+      // Search by email
+      user = await User.findOne({ email: data.email.toLowerCase() });
       if (!user) {
-        throw new Error('User not found with this mobile number');
+        throw new Error('User not found with this email');
       }
     } else if (data.username) {
       // Search by username
@@ -179,7 +179,7 @@ class RoomServiceImpl implements RoomService {
         throw new Error('User not found with this username');
       }
     } else {
-      throw new Error('Either username or mobile number is required');
+      throw new Error('Either username or email is required');
     }
 
     // Check if user is already in the room
@@ -202,8 +202,8 @@ class RoomServiceImpl implements RoomService {
     // Add user to room with pending status
     const newMember = {
       userId: user._id.toString(),
-      username: user.username || user.mobileNumber,
-      mobileNumber: user.mobileNumber,
+      username: user.username,
+      email: user.email,
       role: 'viewer' as const,
       status: 'pending' as const,
       joinedAt: new Date(),
@@ -415,13 +415,13 @@ class RoomServiceImpl implements RoomService {
       roomId: roomId,
       type: 'room_invitation',
       status: 'pending'
-    }).populate('recipientId', 'username mobileNumber profile.profilePicture');
+    }).populate('recipientId', 'username email profile.profilePicture');
     
     return notifications.map(notif => ({
       id: notif._id.toString(),
       userId: notif.recipientId._id.toString(),
-      username: notif.recipientId.username || notif.recipientId.mobileNumber,
-      mobileNumber: notif.recipientId.mobileNumber,
+      username: notif.recipientId.username,
+      email: notif.recipientId.email,
       profilePicture: notif.recipientId.profile?.profilePicture,
       invitedAt: notif.createdAt,
       status: 'pending'

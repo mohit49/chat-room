@@ -77,7 +77,7 @@ class FollowServiceImpl {
       senderId: requesterId,
       type: 'follow_request',
       title: 'New Follower',
-      message: `${requester.username || requester.mobileNumber} started following you`,
+      message: `${requester.username} started following you`,
       status: 'unread',
       metadata: {
         followRequestId: followRequest.id,
@@ -145,7 +145,7 @@ class FollowServiceImpl {
         senderId: accepterId,
         type: 'follow_accepted',
         title: 'Follow Request Accepted',
-        message: `${accepter.username || accepter.mobileNumber} accepted your follow request`,
+        message: `${accepter.username} accepted your follow request`,
         status: 'unread',
         metadata: {
           senderUsername: accepter.username,

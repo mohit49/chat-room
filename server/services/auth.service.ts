@@ -1,43 +1,107 @@
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { storage } from '../models/storage.model';
 import { User } from '../../types';
 import config from '../config';
-import { BadRequestError, UnauthorizedError } from '../utils/errors';
+import { BadRequestError, UnauthorizedError, ConflictError } from '../utils/errors';
 import { otpStorageService } from './otpStorage.service';
+import { emailService } from './email.service';
 
 export class AuthService {
 
-  async sendOTP(mobileNumber: string): Promise<{ mockOTP?: string }> {
-    try {
-      // In production, integrate with SMS service (Twilio, AWS SNS, etc.)
-      // For local development, generate a random 6-digit OTP for any mobile number
-      
-      // Generate a random 6-digit OTP
-      const mockOTP = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Store OTP with 5-minute expiry
-      otpStorageService.storeOTP(mobileNumber, mockOTP, 5);
-      
-      // OTP generated successfully - only return to frontend
-      
-      return {
-        success: true,
-        message: 'OTP sent successfully',
-        mockOTP: mockOTP, // Always return mockOTP in development
-      };
-    } catch (error) {
-      console.error('Error generating OTP:', error);
-      throw new Error('Failed to generate OTP');
+  /**
+   * Register a new user with email and password
+   */
+  async register(email: string, password: string, username: string): Promise<{ user: User; token: string; verificationOTP?: string }> {
+    // Check if email already exists
+    const existingUser = await storage.getUserByEmail(email);
+    if (existingUser) {
+      throw new ConflictError('Email already registered');
     }
+
+    // Check if username already exists
+    const existingUsername = await storage.getUserByUsername(username);
+    if (existingUsername) {
+      throw new ConflictError('Username already taken');
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user with emailVerified: false
+    const user = await storage.createUser({
+      email,
+      password: hashedPassword,
+      username,
+      profile: {
+        birthDate: '',
+        age: 0,
+        gender: '',
+        location: {
+          latitude: 0,
+          longitude: 0,
+          address: '',
+        },
+      },
+    });
+
+    // Send verification email
+    const verificationOTP = await emailService.sendVerificationEmail(email);
+
+    // Generate JWT token
+    const token = this.generateToken(user.id);
+
+    // Remove password from user object before returning
+    const { password: _, ...userWithoutPassword } = user;
+
+    return { 
+      user: userWithoutPassword as User, 
+      token,
+      verificationOTP // Return OTP for development
+    };
   }
 
-  private isValidOTP(mobileNumber: string, otp: string): boolean {
-    return otpStorageService.verifyOTP(mobileNumber, otp);
+  /**
+   * Login with email and password
+   */
+  async login(email: string, password: string): Promise<{ user: User; token: string }> {
+    if (!email) {
+      throw new BadRequestError('Email is required');
+    }
+
+    if (!password) {
+      throw new BadRequestError('Password is required');
+    }
+
+    // Find user by email (need to include password field for comparison)
+    const user = await storage.getUserByEmailWithPassword(email);
+
+    if (!user) {
+      throw new UnauthorizedError('Invalid email or password');
+    }
+
+    // Compare password
+    const isPasswordValid = await bcrypt.compare(password, user.password!);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedError('Invalid email or password');
+    }
+
+    // Generate JWT token
+    const token = this.generateToken(user.id);
+
+    // Remove password from user object before returning
+    const { password: _, ...userWithoutPassword } = user;
+
+    return { user: userWithoutPassword as User, token };
   }
 
-  async login(mobileNumber: string, otp: string): Promise<{ user: User; token: string }> {
-    if (!mobileNumber) {
-      throw new BadRequestError('Mobile number is required');
+  /**
+   * Verify email with OTP
+   */
+  async verifyEmail(email: string, otp: string): Promise<{ user: User }> {
+    if (!email) {
+      throw new BadRequestError('Email is required');
     }
 
     if (!otp) {
@@ -45,36 +109,46 @@ export class AuthService {
     }
 
     // Validate OTP
-    if (!this.isValidOTP(mobileNumber, otp)) {
+    if (!otpStorageService.verifyOTP(email, otp)) {
       throw new BadRequestError('Invalid or expired OTP');
     }
 
-    // OTP is automatically removed after verification in otpStorageService
-
-    // Check if user exists
-    let user = await storage.getUserByMobile(mobileNumber);
+    // Find user by email
+    const user = await storage.getUserByEmail(email);
 
     if (!user) {
-      // Create new user
-      user = await storage.createUser({
-        mobileNumber,
-        profile: {
-          birthDate: '',
-          age: 0,
-          gender: '',
-          location: {
-            latitude: 0,
-            longitude: 0,
-            address: '',
-          },
-        },
-      });
+      throw new BadRequestError('User not found');
     }
 
-    // Generate JWT token
-    const token = this.generateToken(user.id);
+    // Update user emailVerified status
+    const updatedUser = await storage.updateEmailVerification(user.id, true);
 
-    return { user, token };
+    return { user: updatedUser };
+  }
+
+  /**
+   * Resend verification email
+   */
+  async resendVerificationEmail(email: string): Promise<{ verificationOTP?: string }> {
+    if (!email) {
+      throw new BadRequestError('Email is required');
+    }
+
+    // Find user by email
+    const user = await storage.getUserByEmail(email);
+
+    if (!user) {
+      throw new BadRequestError('User not found');
+    }
+
+    if (user.emailVerified) {
+      throw new BadRequestError('Email already verified');
+    }
+
+    // Send verification email
+    const verificationOTP = await emailService.sendVerificationEmail(email);
+
+    return { verificationOTP };
   }
 
   generateToken(userId: string): string {

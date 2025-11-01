@@ -5,11 +5,13 @@ import { User, UserProfile, OnlineStatus } from '../../types';
 import { ConflictError, NotFoundError } from '../utils/errors';
 
 export class UserModelDB {
-  async createUser(data: { mobileNumber: string; profile: Partial<UserProfile>; username?: string }): Promise<User> {
+  async createUser(data: { email: string; password: string; username: string; profile: Partial<UserProfile> }): Promise<User> {
     try {
       const user = await UserModel.create({
-        mobileNumber: data.mobileNumber,
+        email: data.email,
+        password: data.password,
         username: data.username,
+        emailVerified: false,
         profile: {
           birthDate: data.profile.birthDate || '',
           age: data.profile.age || 0,
@@ -31,7 +33,13 @@ export class UserModelDB {
       return this.documentToUser(user);
     } catch (error: any) {
       if (error.code === 11000) {
-        throw new ConflictError('Mobile number already exists');
+        if (error.keyPattern?.email) {
+          throw new ConflictError('Email already exists');
+        }
+        if (error.keyPattern?.username) {
+          throw new ConflictError('Username already exists');
+        }
+        throw new ConflictError('Duplicate key error');
       }
       throw error;
     }
@@ -42,8 +50,13 @@ export class UserModelDB {
     return user ? this.documentToUser(user) : null;
   }
 
-  async getUserByMobile(mobileNumber: string): Promise<User | null> {
-    const user = await UserModel.findOne({ mobileNumber });
+  async getUserByEmail(email: string): Promise<User | null> {
+    const user = await UserModel.findOne({ email: email.toLowerCase() });
+    return user ? this.documentToUser(user) : null;
+  }
+
+  async getUserByEmailWithPassword(email: string): Promise<User | null> {
+    const user = await UserModel.findOne({ email: email.toLowerCase() }).select('+password');
     return user ? this.documentToUser(user) : null;
   }
 
@@ -149,7 +162,7 @@ export class UserModelDB {
     const users = await UserModel.find({
       $or: [
         { username: { $regex: searchTerm, $options: 'i' } },
-        { mobileNumber: { $regex: searchTerm, $options: 'i' } }
+        { email: { $regex: searchTerm, $options: 'i' } }
       ]
     }).sort({ username: 1 }).limit(20);
     
@@ -160,18 +173,18 @@ export class UserModelDB {
     await UserModel.deleteMany({});
   }
 
-  async findByMobileNumber(mobileNumber: string): Promise<User | null> {
-    const user = await UserModel.findOne({ mobileNumber });
-    return user ? this.documentToUser(user) : null;
-  }
-
-  async updateUserMobileNumber(userId: string, newMobileNumber: string): Promise<User | null> {
+  async updateEmailVerification(userId: string, verified: boolean): Promise<User> {
     const user = await UserModel.findByIdAndUpdate(
       userId,
-      { mobileNumber: newMobileNumber },
+      { emailVerified: verified },
       { new: true }
     );
-    return user ? this.documentToUser(user) : null;
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    return this.documentToUser(user);
   }
 
   // Helper to convert Mongoose document to User type
@@ -197,7 +210,7 @@ export class UserModelDB {
   async getUsersWithStatus(): Promise<User[]> {
     try {
       const users = await UserModel.find({})
-        .select('mobileNumber username profile lastSeen onlineStatus createdAt updatedAt')
+        .select('email username emailVerified profile lastSeen onlineStatus createdAt updatedAt')
         .sort({ onlineStatus: 1, lastSeen: -1 }); // Sort by status (online first), then by lastSeen
 
       return users.map(user => this.documentToUser(user));
@@ -210,8 +223,10 @@ export class UserModelDB {
   private documentToUser(doc: UserDocument): User {
     return {
       id: doc._id.toString(),
-      mobileNumber: doc.mobileNumber,
+      email: doc.email,
       username: doc.username,
+      password: (doc as any).password, // Include password only if explicitly selected
+      emailVerified: doc.emailVerified,
       profile: doc.profile,
       lastSeen: doc.lastSeen,
       onlineStatus: doc.onlineStatus,
