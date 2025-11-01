@@ -256,11 +256,11 @@ export default function RoomsPage() {
     }
   };
 
-  const handleAddMember = async (mobileNumber: string) => {
+  const handleAddMember = async (usernameOrEmail: string) => {
     if (!selectedRoom) return;
 
     try {
-      const response = await api.addMember(selectedRoom.id, mobileNumber) as any;
+      const response = await api.addMember(selectedRoom.id, usernameOrEmail) as any;
       if (response.success) {
         setSelectedRoom(response.room);
       }

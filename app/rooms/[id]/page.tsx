@@ -21,7 +21,7 @@ import { VoiceBroadcastProvider } from '@/lib/contexts/VoiceBroadcastContext';
 interface RoomMember {
   userId: string;
   username?: string;
-  mobileNumber: string;
+  email: string;
   role: 'admin' | 'editor' | 'viewer';
   status: 'active' | 'pending';
   joinedAt: string;
@@ -473,18 +473,18 @@ export default function ManageRoomPage() {
                             member.profilePicture?.type === 'upload'
                               ? member.profilePicture.url
                               : member.profilePicture?.type === 'avatar'
-                              ? `https://api.dicebear.com/7.x/${member.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${member.profilePicture.seed || member.mobileNumber}`
+                              ? `https://api.dicebear.com/7.x/${member.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${member.profilePicture.seed || member.email}`
                               : undefined
                           }
                         />
                         <AvatarFallback>
-                          {member.username?.charAt(0).toUpperCase() || member.mobileNumber?.charAt(0)}
+                          {member.username?.charAt(0).toUpperCase() || member.email?.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-sm">
-                            {member.username ? `@${member.username}` : member.mobileNumber}
+                            {member.username ? `@${member.username}` : member.email}
                           </p>
                           {member.status === 'pending' && (
                             <Badge variant="secondary" className="text-xs">
@@ -492,7 +492,7 @@ export default function ManageRoomPage() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground">{member.mobileNumber}</p>
+                        <p className="text-xs text-muted-foreground">{member.email}</p>
                       </div>
                     </div>
 
@@ -768,7 +768,7 @@ export default function ManageRoomPage() {
                       </Avatar>
                       <div>
                         <p className="font-medium">@{invitation.username}</p>
-                        <p className="text-sm text-muted-foreground">{invitation.mobileNumber}</p>
+                        <p className="text-sm text-muted-foreground">{invitation.email}</p>
                         <p className="text-xs text-yellow-600">
                           Invited {new Date(invitation.invitedAt).toLocaleDateString()}
                         </p>
@@ -831,18 +831,18 @@ export default function ManageRoomPage() {
                           member.profilePicture?.type === 'upload'
                             ? member.profilePicture.url
                             : member.profilePicture?.type === 'avatar'
-                            ? `https://api.dicebear.com/7.x/${member.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${member.profilePicture.seed || member.mobileNumber}`
+                            ? `https://api.dicebear.com/7.x/${member.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${member.profilePicture.seed || member.email}`
                             : undefined
                         }
                       />
                       <AvatarFallback>
-                        {member.username?.charAt(0).toUpperCase() || member.mobileNumber?.charAt(0)}
+                        {member.username?.charAt(0).toUpperCase() || member.email?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm">
-                          {member.username ? `@${member.username}` : member.mobileNumber}
+                          {member.username ? `@${member.username}` : member.email}
                         </p>
                         {member.status === 'pending' && (
                           <Badge variant="secondary" className="text-xs">
@@ -850,7 +850,7 @@ export default function ManageRoomPage() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{member.mobileNumber}</p>
+                      <p className="text-xs text-muted-foreground">{member.email}</p>
                     </div>
                   </div>
 
@@ -964,19 +964,19 @@ export default function ManageRoomPage() {
                         memberToRemove.profilePicture?.type === 'upload'
                           ? memberToRemove.profilePicture.url
                           : memberToRemove.profilePicture?.type === 'avatar'
-                          ? `https://api.dicebear.com/7.x/${memberToRemove.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${memberToRemove.profilePicture.seed || memberToRemove.mobileNumber}`
+                          ? `https://api.dicebear.com/7.x/${memberToRemove.profilePicture.avatarStyle?.toLowerCase().replace(/\s+/g, '-')}/svg?seed=${memberToRemove.profilePicture.seed || memberToRemove.email}`
                           : undefined
                       }
                     />
                     <AvatarFallback>
-                      {memberToRemove.username?.charAt(0).toUpperCase() || memberToRemove.mobileNumber?.charAt(0)}
+                      {memberToRemove.username?.charAt(0).toUpperCase() || memberToRemove.email?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div>
                     <p className="font-medium">
-                      {memberToRemove.username ? `@${memberToRemove.username}` : memberToRemove.mobileNumber}
+                      {memberToRemove.username ? `@${memberToRemove.username}` : memberToRemove.email}
                     </p>
-                    <p className="text-sm text-muted-foreground">{memberToRemove.mobileNumber}</p>
+                    <p className="text-sm text-muted-foreground">{memberToRemove.email}</p>
                     <Badge variant="secondary" className="mt-1">{memberToRemove.role}</Badge>
                   </div>
                 </div>
