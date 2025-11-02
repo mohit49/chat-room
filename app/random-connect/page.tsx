@@ -91,7 +91,7 @@ export default function RandomConnectPage() {
   }
 
   return (
-    <EmailVerificationGuard feature="random connect" blockInteraction={true}>
+    <EmailVerificationGuard feature="random connect" silentRestriction={true}>
       <div className="h-screen w-screen fixed inset-0 bg-black">
         <RandomChatWidget />
       </div>

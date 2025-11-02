@@ -341,11 +341,11 @@ export default function ProfileScreen({ navigation }: Props) {
         )}
 
         <TouchableOpacity
-          style={[styles.button, styles.buttonSecondary, loading && styles.buttonDisabled]}
+          style={[styles.button, styles.buttonSecondary, profileUpdate.loading && styles.buttonDisabled]}
           onPress={handleUpdateLocation}
-          disabled={loading}
+          disabled={profileUpdate.loading}
         >
-          {loading ? (
+          {profileUpdate.loading ? (
             <ActivityIndicator color={COLORS.primary} />
           ) : (
             <Text style={styles.buttonTextSecondary}>Update Current Location</Text>

@@ -37,6 +37,7 @@ import { useVoiceBroadcast } from '@/lib/contexts/VoiceBroadcastContext';
 import { api } from '@/lib/api';
 import { openChat } from '@/components/layout/GlobalChatManager';
 import { OnlineStatus } from '@/types';
+import EmailVerificationGuard from '@/components/auth/EmailVerificationGuard';
 
 interface ChatMessage {
   id: string;
@@ -806,7 +807,8 @@ export default function ChatWidget({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-0 right-0 w-full h-full sm:bottom-4 sm:right-4 sm:w-[500px] sm:h-[700px] z-50 flex flex-col overflow-hidden">
+    <EmailVerificationGuard feature="room chat" silentRestriction={true}>
+      <div className="fixed bottom-0 right-0 w-full h-full sm:bottom-4 sm:right-4 sm:w-[500px] sm:h-[700px] z-50 flex flex-col overflow-hidden">
       <Card className="w-full h-full flex flex-col shadow-2xl sm:border-2 border-0 p-0 sm:rounded-lg rounded-none">
         {/* Chat Header */}
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 border-b">
@@ -1319,6 +1321,7 @@ export default function ChatWidget({
         images={getImageMessages()}
         currentImageIndex={currentImageIndex}
       />
-    </div>
+      </div>
+    </EmailVerificationGuard>
   );
 }

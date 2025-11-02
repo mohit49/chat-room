@@ -398,11 +398,10 @@ export default function HomePage() {
               />
             </div>
 
-            {/* Action Buttons with Email Verification Guard */}
+            {/* Action Buttons with Silent Email Verification */}
             <EmailVerificationGuard 
               feature="chat features"
-              showInlineMessage={true}
-              blockInteraction={false}
+              silentRestriction={true}
             >
               <div className="mt-6 pt-4 border-t">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -451,7 +450,7 @@ export default function HomePage() {
         </Card>
 
         {/* Banner Carousel */}
-        <EmailVerificationGuard feature="interactive features" showInlineMessage={true} blockInteraction={false}>
+        <EmailVerificationGuard feature="interactive features" silentRestriction={true}>
           <BannerCarousel 
             onCreateRoom={() => setShowCreateModal(true)}
             onExploreRooms={() => router.push('/rooms')}
@@ -463,21 +462,23 @@ export default function HomePage() {
 
         {/* Online Users Carousel */}
         <div className="px-0">
-          <OnlineUsersCarousel 
-            currentUserId={user.id}
-            onMessageUser={(userId, username) => {
-              setDirectMessageUser({
-                id: userId,
-                username: username,
-                profilePicture: undefined // Will be fetched when needed
-              });
-              setIsDirectMessageOpen(true);
-            }}
-          />
+          <EmailVerificationGuard feature="messaging" silentRestriction={true}>
+            <OnlineUsersCarousel 
+              currentUserId={user.id}
+              onMessageUser={(userId, username) => {
+                setDirectMessageUser({
+                  id: userId,
+                  username: username,
+                  profilePicture: undefined // Will be fetched when needed
+                });
+                setIsDirectMessageOpen(true);
+              }}
+            />
+          </EmailVerificationGuard>
         </div>
 
         {/* Voice Broadcast Card */}
-        <EmailVerificationGuard feature="voice broadcasting" blockInteraction={true}>
+        <EmailVerificationGuard feature="voice broadcasting" silentRestriction={true}>
           <ProfileCompletionGuard 
             isComplete={isComplete} 
             missingFields={missingFields}
@@ -488,7 +489,7 @@ export default function HomePage() {
         </EmailVerificationGuard>
 
         {/* Instant Chat Section */}
-        <EmailVerificationGuard feature="instant chat" blockInteraction={true}>
+        <EmailVerificationGuard feature="instant chat" silentRestriction={true}>
           <ProfileCompletionGuard 
             isComplete={isComplete} 
             missingFields={missingFields}
@@ -499,7 +500,7 @@ export default function HomePage() {
         </EmailVerificationGuard>
 
         {/* My Rooms Section */}
-        <EmailVerificationGuard feature="chat rooms and messaging" blockInteraction={true}>
+        <EmailVerificationGuard feature="chat rooms and messaging" silentRestriction={true}>
           <ProfileCompletionGuard 
             isComplete={isComplete} 
             missingFields={missingFields}

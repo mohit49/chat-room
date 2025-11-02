@@ -333,7 +333,7 @@ export default function RoomsPage() {
   }
 
   return (
-    <EmailVerificationGuard feature="chat rooms" blockInteraction={true}>
+    <EmailVerificationGuard feature="chat rooms" silentRestriction={true}>
       <div className="min-h-screen bg-background">
         {/* Profile Completion Banner */}
         <ProfileCompletionBanner isComplete={isComplete} missingFields={missingFields} />
