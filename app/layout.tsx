@@ -25,13 +25,33 @@ import { HydrationErrorSuppressor } from "@/components/ui/HydrationErrorSuppress
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: "Flipy Chat - Connect, Chat, and Collaborate Anywhere",
+  metadataBase: new URL('https://flipychat.com'),
+  title: {
+    default: "Flipy Chat - Connect, Chat, and Collaborate Anywhere",
+    template: "%s | Flipy Chat"
+  },
   description: "Join Flipy Chat, a modern chat platform with real-time messaging, voice broadcasting, and secure communication. Create rooms, connect with people worldwide. 16+ safe community.",
   keywords: "chat app, messaging, voice chat, online chat, real-time messaging, chat rooms, voice broadcasting, secure chat, social networking, flipy chat",
   authors: [{ name: "Flipy Chat" }],
+  creator: "Flipy Chat",
+  publisher: "Flipy Chat",
   manifest: "/manifest.json",
   themeColor: "#1f2937",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
+  alternates: {
+    canonical: "https://flipychat.com",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -59,7 +79,7 @@ export const metadata: Metadata = {
     description: "Modern chat platform with real-time messaging, voice broadcasting, and secure communication. Join our 16+ safe community.",
     images: [
       {
-        url: "/logo-icon.png",
+        url: "https://flipychat.com/logo-icon.png",
         width: 1200,
         height: 630,
         alt: "Flipy Chat Logo",

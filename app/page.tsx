@@ -63,6 +63,9 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
+  alternates: {
+    canonical: 'https://flipychat.com',
+  },
 };
 
 // Enable server-side rendering with periodic revalidation (every 60 seconds)

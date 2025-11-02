@@ -1,15 +1,28 @@
-# robots.txt for ChatApp
+# robots.txt for FlipyChat
 User-agent: *
 Allow: /
 Allow: /about
 Allow: /privacy-policy
+
+# Disallow private/authenticated pages
 Disallow: /home
 Disallow: /profile
 Disallow: /rooms
+Disallow: /rooms/
 Disallow: /notifications
 Disallow: /users
-Disallow: /login
+Disallow: /users/
+Disallow: /instant-chat
+Disallow: /instant-chat/
+Disallow: /random-connect
+Disallow: /api/
+
+# Allow specific public pages
+Allow: /login
+
+# Crawl-delay (optional, helps with server load)
+Crawl-delay: 1
 
 # Sitemap location
-Sitemap: https://chatapp.com/sitemap.xml
+Sitemap: https://flipychat.com/sitemap.xml
 
