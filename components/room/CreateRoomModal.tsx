@@ -73,8 +73,8 @@ export default function CreateRoomModal({ isOpen, onClose, onCreateRoom }: Creat
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[100vh] h-[100vh] sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
             Create New Room
@@ -84,7 +84,7 @@ export default function CreateRoomModal({ isOpen, onClose, onCreateRoom }: Creat
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-y-auto flex-1 pr-2 -mr-2">
           {/* Room Profile Picture */}
           <div className="flex flex-col items-center space-y-4">
             <Label className="text-sm font-medium">Room Profile Picture</Label>
@@ -156,24 +156,25 @@ export default function CreateRoomModal({ isOpen, onClose, onCreateRoom }: Creat
             </CardContent>
           </Card>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              disabled={loading}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateRoom}
-              disabled={!roomName.trim() || loading}
-              className="flex-1"
-            >
-              {loading ? 'Creating...' : 'Create Room'}
-            </Button>
-          </div>
+        </div>
+
+        {/* Action Buttons - Fixed at bottom */}
+        <div className="flex gap-3 pt-4 border-t bg-background flex-shrink-0">
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            disabled={loading}
+            className="flex-1"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateRoom}
+            disabled={!roomName.trim() || loading}
+            className="flex-1"
+          >
+            {loading ? 'Creating...' : 'Create Room'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

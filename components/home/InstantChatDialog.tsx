@@ -70,14 +70,15 @@ export default function InstantChatDialog({ isOpen, onClose }: InstantChatDialog
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[100vh] h-[100vh] sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Start Instant Chat</DialogTitle>
           <DialogDescription>
             Create a secure chat room and share the link with anyone
           </DialogDescription>
         </DialogHeader>
 
+        <div className="overflow-y-auto flex-1 pr-2 -mr-2">
         {!chatLink ? (
           // Step 1: Create Chat
           <div className="space-y-4 py-4">
@@ -194,6 +195,7 @@ export default function InstantChatDialog({ isOpen, onClose }: InstantChatDialog
             </div>
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );

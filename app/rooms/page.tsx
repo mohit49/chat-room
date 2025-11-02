@@ -26,6 +26,7 @@ import { useSocket } from '@/lib/contexts/SocketContext';
 import ProfileCompletionBanner from '@/components/profile/ProfileCompletionBanner';
 import ProfileCompletionGuard from '@/components/profile/ProfileCompletionGuard';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
+import EmailVerificationGuard from '@/components/auth/EmailVerificationGuard';
 import { api } from '@/lib/api';
 
 interface Room {
@@ -332,20 +333,21 @@ export default function RoomsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Profile Completion Banner */}
-      <ProfileCompletionBanner isComplete={isComplete} missingFields={missingFields} />
-      
-      <div className="py-4 lg:py-8">
-        <div className="max-w-6xl mx-auto px-4 space-y-6">
-          <AppHeader 
-            {...APP_HEADER_CONFIGS.rooms}
-            onCreateRoom={() => setShowCreateModal(true)}
-          />
+    <EmailVerificationGuard feature="chat rooms" blockInteraction={true}>
+      <div className="min-h-screen bg-background">
+        {/* Profile Completion Banner */}
+        <ProfileCompletionBanner isComplete={isComplete} missingFields={missingFields} />
+        
+        <div className="py-4 lg:py-8">
+          <div className="max-w-6xl mx-auto px-4 space-y-6">
+            <AppHeader 
+              {...APP_HEADER_CONFIGS.rooms}
+              onCreateRoom={() => setShowCreateModal(true)}
+            />
 
-          {/* Rooms Grid */}
-          <ProfileCompletionGuard 
-            isComplete={isComplete} 
+            {/* Rooms Grid */}
+            <ProfileCompletionGuard 
+              isComplete={isComplete} 
             missingFields={missingFields}
             featureName="chat rooms"
           >
@@ -630,5 +632,6 @@ export default function RoomsPage() {
         </div>
       </div>
     </div>
+    </EmailVerificationGuard>
   );
 }

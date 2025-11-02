@@ -29,13 +29,15 @@ interface BannerCarouselProps {
   onExploreRooms?: () => void;
   onViewNotifications?: () => void;
   onRandomConnect?: () => void;
+  onInstantChat?: () => void;
 }
 
 export function BannerCarousel({ 
   onCreateRoom, 
   onExploreRooms,
   onViewNotifications,
-  onRandomConnect
+  onRandomConnect,
+  onInstantChat
 }: BannerCarouselProps) {
   const [api, setApi] = React.useState<any>();
   const [current, setCurrent] = React.useState(0);
@@ -79,11 +81,11 @@ export function BannerCarousel({
     },
     {
       id: '3',
-      title: 'Connect Instantly',
-      description: 'Send messages, share moments, and stay connected with your friends in real-time.',
-      buttonText: 'Start Chatting',
-      buttonAction: onExploreRooms || (() => {}),
-      icon: MessageCircle,
+      title: 'Instant Chat',
+      description: 'Create secure chat rooms instantly and share links with anyone. No signup required for participants!',
+      buttonText: 'Start Instant Chat',
+      buttonAction: onInstantChat || (() => {}),
+      icon: Zap,
       gradient: 'from-green-500 via-teal-500 to-blue-500',
     },
     {

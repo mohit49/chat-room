@@ -26,6 +26,7 @@ import { UserProfile, Location } from '@/types';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { FollowListDialog } from '@/components/user/FollowListDialog';
 import { getFollowCounts } from '@/lib/api/follow';
+import { useProfileUpdate } from '@/hooks/useProfileUpdate';
 
 
 // Calculate age from birth date
@@ -61,33 +62,35 @@ const getMinDate = (): string => {
 export default function ProfilePage() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const profileUpdate = useProfileUpdate();
+  
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [savingUsername, setSavingUsername] = useState(false);
-  const [savingBirthDate, setSavingBirthDate] = useState(false);
-  const [savingGender, setSavingGender] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [originalUsername, setOriginalUsername] = useState(''); // Track original username
   const [isUsernameValid, setIsUsernameValid] = useState(true);
   const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
-  const [profile, setProfile] = useState<UserProfile>({
+  
+  // Track original values for change detection
+  const [originalBirthDate, setOriginalBirthDate] = useState('');
+  const [originalGender, setOriginalGender] = useState('');
+
+  // Get current profile from user context (always up-to-date)
+  const profile = user?.profile || {
     birthDate: '',
     age: 0,
     gender: '',
     location: {
       latitude: 0,
       longitude: 0,
-      address: ''
+      address: '',
+      area: '',
+      city: '',
+      state: '',
+      isVisible: true
     },
     profilePicture: undefined
-  });
-  
-  // Track original values
-  const [originalBirthDate, setOriginalBirthDate] = useState('');
-  const [originalGender, setOriginalGender] = useState('');
+  };
 
   // Check if values have changed
   const hasUsernameChanged = username !== originalUsername && username.trim() !== '';
@@ -117,22 +120,7 @@ export default function ProfilePage() {
           const currentBirthDate = response.user.profile.birthDate || '';
           const currentGender = response.user.profile.gender || '';
           
-          // Ensure we load the complete profile including profilePicture
-          setProfile({
-            birthDate: currentBirthDate,
-            age: response.user.profile.age || 0,
-            gender: currentGender,
-          location: response.user.profile.location || {
-            latitude: 0,
-            longitude: 0,
-            address: '',
-            area: '',
-            city: '',
-            state: '',
-            isVisible: true
-          },
-            profilePicture: response.user.profile.profilePicture
-          });
+          // Profile is now managed by AuthContext, no need to set local state
           
           // Store original values
           setOriginalBirthDate(currentBirthDate);
@@ -168,113 +156,33 @@ export default function ProfilePage() {
   const handleUpdateUsername = async () => {
     if (!hasUsernameChanged || !isUsernameValid) return;
     
-    const token = getAuthToken();
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    setSavingUsername(true);
-    setError('');
-
-    try {
-      const response = await api.updateUsername(token, username);
-      
-      if (response.success) {
-        setOriginalUsername(username);
-        setSuccess('Username updated successfully!');
-        setTimeout(() => setSuccess(''), 3000);
-      } else {
-        setError(response.error || 'Failed to update username');
-      }
-    } catch (err: any) {
-      console.error('Username update error:', err);
-      setError(err.message || 'Failed to update username');
-    } finally {
-      setSavingUsername(false);
+    const success = await profileUpdate.updateUsername(username);
+    if (success) {
+      setOriginalUsername(username);
     }
   };
 
   const handleUpdateBirthDate = async () => {
     if (!hasBirthDateChanged) return;
     
-    const token = getAuthToken();
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    const calculatedAge = calculateAge(profile.birthDate);
-
-    // Validate minimum age (16 years)
-    if (calculatedAge < 16) {
-      setError('You must be at least 16 years old to use this service.');
-      return;
-    }
-
-    setSavingBirthDate(true);
-    setError('');
-
-    try {
-      const updateData = {
-        birthDate: profile.birthDate,
-        age: calculatedAge,
-        gender: profile.gender,
-        profilePicture: profile.profilePicture
-      };
-      
-      const response = await api.updateProfile(token, updateData as any);
-      
-      if (response.success && response.user) {
-        setOriginalBirthDate(profile.birthDate);
-        setProfile(prev => ({ ...prev, age: calculatedAge }));
-        setSuccess('Birth date updated successfully!');
-        setTimeout(() => setSuccess(''), 3000);
-      } else {
-        setError(response.error || 'Failed to update birth date');
-      }
-    } catch (err: any) {
-      console.error('Birth date update error:', err);
-      setError(err.message || 'Failed to update birth date');
-    } finally {
-      setSavingBirthDate(false);
+    const success = await profileUpdate.updateProfile({
+      birthDate: profile.birthDate,
+    });
+    
+    if (success) {
+      setOriginalBirthDate(profile.birthDate);
     }
   };
 
   const handleUpdateGender = async () => {
     if (!hasGenderChanged) return;
     
-    const token = getAuthToken();
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    setSavingGender(true);
-    setError('');
-
-    try {
-      const updateData = {
-        birthDate: profile.birthDate,
-        age: profile.age,
-        gender: profile.gender,
-        profilePicture: profile.profilePicture
-      };
-      
-      const response = await api.updateProfile(token, updateData as any);
-      
-      if (response.success && response.user) {
-        setOriginalGender(profile.gender);
-        setSuccess('Gender updated successfully!');
-        setTimeout(() => setSuccess(''), 3000);
-      } else {
-        setError(response.error || 'Failed to update gender');
-      }
-    } catch (err: any) {
-      console.error('Gender update error:', err);
-      setError(err.message || 'Failed to update gender');
-    } finally {
-      setSavingGender(false);
+    const success = await profileUpdate.updateProfile({
+      gender: profile.gender,
+    });
+    
+    if (success) {
+      setOriginalGender(profile.gender);
     }
   };
 
@@ -287,35 +195,36 @@ export default function ProfilePage() {
     const day = String(selectedDate.getDate()).padStart(2, '0');
     const newBirthDate = `${year}-${month}-${day}`;
     
-    const calculatedAge = calculateAge(newBirthDate);
+    const calculatedAge = profileUpdate.calculateAge(newBirthDate);
 
-    // Update local state
-    setProfile({ ...profile, birthDate: newBirthDate, age: calculatedAge });
-    setError('');
+    // Update profile in context immediately for UI responsiveness
+    profileUpdate.updateProfile({ 
+      birthDate: newBirthDate, 
+      age: calculatedAge 
+    }, { 
+      optimistic: true, 
+      showSuccess: false 
+    });
+    
+    profileUpdate.clearMessages();
   };
 
   const handleGenderChange = (value: 'male' | 'female' | 'other' | '') => {
-    // Update local state
-    setProfile({ ...profile, gender: value });
-    setError('');
+    // Update profile in context immediately for UI responsiveness
+    profileUpdate.updateProfile({ 
+      gender: value 
+    }, { 
+      optimistic: true, 
+      showSuccess: false 
+    });
+    
+    profileUpdate.clearMessages();
   };
 
   const handleUpdateLocation = async (locationData: Location) => {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error('Authentication token not found');
-    }
-
-    const response = await api.updateLocation(token, locationData);
-
-    if (response.success && response.user) {
-      // Update local state with new location
-      setProfile(prev => ({
-        ...prev,
-        location: response.user?.profile?.location || prev.location
-      }));
-    } else {
-      throw new Error(response.error || 'Failed to update location');
+    const success = await profileUpdate.updateLocation(locationData);
+    if (!success) {
+      throw new Error(profileUpdate.error || 'Failed to update location');
     }
   };
 
@@ -362,15 +271,15 @@ export default function ProfilePage() {
               avatarSeed={profile.profilePicture?.seed}
               username={email}
               onImageChange={(imageData, type, style, seed) => {
-                setProfile({
-                  ...profile,
-                  profilePicture: {
-                    type,
-                    url: type === 'upload' ? imageData : undefined,
-                    avatarStyle: style,
-                    seed: seed,
-                  }
-                });
+                const profilePicture = {
+                  type,
+                  url: type === 'upload' ? imageData : undefined,
+                  avatarStyle: style,
+                  seed: seed,
+                };
+                
+                // Update profile picture with optimistic update and server sync
+                profileUpdate.updateProfilePicture(profilePicture);
               }}
             />
           </CardContent>
@@ -414,11 +323,11 @@ export default function ProfilePage() {
                 {hasUsernameChanged && isUsernameValid && (
                   <Button 
                     onClick={handleUpdateUsername} 
-                    disabled={savingUsername}
+                    disabled={profileUpdate.loading}
                     size="sm" 
                     className="w-full"
                   >
-                    {savingUsername ? 'Updating...' : 'Update Username'}
+                    {profileUpdate.loading ? 'Updating...' : 'Update Username'}
                   </Button>
                 )}
               </div>
@@ -438,15 +347,15 @@ export default function ProfilePage() {
                   {hasBirthDateChanged && (
                     <Button 
                       onClick={handleUpdateBirthDate} 
-                      disabled={savingBirthDate || calculateAge(profile.birthDate) < 16}
+                      disabled={profileUpdate.loading || profileUpdate.calculateAge(profile.birthDate) < 16}
                       size="sm"
                       className="shrink-0"
                     >
-                      {savingBirthDate ? 'Updating...' : 'Update'}
+                      {profileUpdate.loading ? 'Updating...' : 'Update'}
                     </Button>
                   )}
                 </div>
-                {profile.birthDate && calculateAge(profile.birthDate) < 16 && calculateAge(profile.birthDate) > 0 && (
+                {profile.birthDate && profileUpdate.calculateAge(profile.birthDate) < 16 && profileUpdate.calculateAge(profile.birthDate) > 0 && (
                   <p className="text-xs text-red-500">⚠️ Minimum age requirement: 16 years</p>
                 )}
               </div>
@@ -456,7 +365,7 @@ export default function ProfilePage() {
                 <Input
                   id="age"
                   type="number"
-                  value={profile.birthDate ? calculateAge(profile.birthDate) : ''}
+                  value={profile.birthDate ? profileUpdate.calculateAge(profile.birthDate) : ''}
                   disabled
                   className="bg-gray-100 cursor-not-allowed"
                   readOnly
@@ -484,18 +393,18 @@ export default function ProfilePage() {
                   {hasGenderChanged && (
                     <Button 
                       onClick={handleUpdateGender} 
-                      disabled={savingGender}
+                      disabled={profileUpdate.loading}
                       size="sm"
                       className="shrink-0"
                     >
-                      {savingGender ? 'Updating...' : 'Update'}
+                      {profileUpdate.loading ? 'Updating...' : 'Update'}
                     </Button>
                   )}
                 </div>
               </div>
 
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              {success && <p className="text-sm text-green-600">{success}</p>}
+              {profileUpdate.error && <p className="text-sm text-red-500">{profileUpdate.error}</p>}
+              {profileUpdate.success && <p className="text-sm text-green-600">{profileUpdate.success}</p>}
 
             </div>
           </CardContent>

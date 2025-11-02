@@ -96,6 +96,12 @@ export const useAuth = () => {
     }
   };
 
+  // Update user in context (for optimistic updates)
+  const updateUser = async (updatedUser: User) => {
+    setUser(updatedUser);
+    await saveUser(updatedUser);
+  };
+
   return {
     user,
     loading,
@@ -103,6 +109,7 @@ export const useAuth = () => {
     isAuthenticated,
     login,
     logout,
+    updateUser,
   };
 };
 

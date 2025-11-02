@@ -13,6 +13,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { Picker } from '@react-native-picker/picker';
 import { useAuth } from '../hooks/useAuth';
+import { useProfileUpdate } from '../hooks/useProfileUpdate';
 import { apiService } from '../services/api.service';
 import { getCurrentLocation } from '../services/location.service';
 import { COLORS, GENDER_OPTIONS } from '../constants';
@@ -54,10 +55,13 @@ interface Props {
 
 export default function ProfileScreen({ navigation }: Props) {
   const { user, logout } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const profileUpdate = useProfileUpdate();
+  
   const [username, setUsername] = useState('');
   const [usernameError, setUsernameError] = useState('');
-  const [profile, setProfile] = useState<UserProfile>({
+
+  // Get current profile from user context (always up-to-date)
+  const profile = user?.profile || {
     birthDate: '',
     age: 0,
     gender: '',
@@ -67,7 +71,7 @@ export default function ProfileScreen({ navigation }: Props) {
       address: '',
     },
     profilePicture: undefined,
-  });
+  };
 
   // Check profile completion status
   const isComplete = isProfileComplete(profile, username);
@@ -76,18 +80,7 @@ export default function ProfileScreen({ navigation }: Props) {
   useEffect(() => {
     if (user) {
       setUsername(user.username || '');
-      // Ensure we load the complete profile including profilePicture
-      setProfile({
-        birthDate: user.profile.birthDate || '',
-        age: user.profile.age || 0,
-        gender: user.profile.gender || '',
-        location: user.profile.location || {
-          latitude: 0,
-          longitude: 0,
-          address: ''
-        },
-        profilePicture: user.profile.profilePicture
-      });
+      // Profile is now managed by user context, no need to set local state
     } else {
       // If no user, redirect to login
       navigation.replace('Login');
@@ -129,116 +122,50 @@ export default function ProfileScreen({ navigation }: Props) {
   };
 
   const handleUpdateProfile = async () => {
-    setLoading(true);
-    
-    // Calculate age from birth date
-    const calculatedAge = calculateAge(profile.birthDate);
-    
-    // Validate minimum age (16 years)
-    if (profile.birthDate && calculatedAge < 16) {
-      Alert.alert('Age Requirement', 'You must be at least 16 years old to use this service.');
-      setLoading(false);
-      return;
-    }
-
     // Update username if changed
     if (username && username !== user?.username) {
       if (!validateUsername(username)) {
         Alert.alert('Invalid Username', usernameError);
-        setLoading(false);
         return;
       }
 
-      try {
-        const usernameResponse = await apiService.updateUsername(username);
-        if (!usernameResponse.success) {
-          Alert.alert('Error', usernameResponse.error || 'Username already taken');
-          setLoading(false);
-          return;
-        }
-        // Update local username state
-        if (usernameResponse.user) {
-          setUsername(usernameResponse.user.username || username);
-        }
-      } catch (error: any) {
-        Alert.alert('Error', error.message || 'Failed to update username');
-        setLoading(false);
-        return;
+      const usernameSuccess = await profileUpdate.updateUsername(username);
+      if (!usernameSuccess) {
+        return; // Error already shown by hook
       }
+      
+      // Update local username state
+      setUsername(username);
     }
     
-    try {
-      const response = await apiService.updateProfile({
-        birthDate: profile.birthDate,
-        age: calculatedAge,
-        gender: profile.gender as any,
-        profilePicture: profile.profilePicture,
-      } as any);
+    // Update profile data
+    const success = await profileUpdate.updateProfile({
+      birthDate: profile.birthDate,
+      gender: profile.gender,
+      profilePicture: profile.profilePicture,
+    });
 
-      if (response.success && response.user) {
-        // Update local state with response from server
-        setProfile({
-          birthDate: response.user.profile.birthDate || '',
-          age: response.user.profile.age || 0,
-          gender: response.user.profile.gender || '',
-          location: response.user.profile.location || profile.location,
-          profilePicture: response.user.profile.profilePicture
-        });
-        Alert.alert('Success', 'Profile updated successfully!');
-        
-        // Profile updated successfully - user can manually navigate to home
-        console.log('Mobile Profile updated successfully');
-      } else {
-        Alert.alert('Error', response.error || 'Failed to update profile');
-      }
-    } catch (error: any) {
-      // Check if it's an auth error
-      if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
-        Alert.alert('Session Expired', 'Please login again.', [
-          {
-            text: 'OK',
-            onPress: () => navigation.replace('Login'),
-          },
-        ]);
-      } else {
-        Alert.alert('Error', error.message || 'Failed to update profile');
-      }
-    } finally {
-      setLoading(false);
+    if (success) {
+      console.log('Mobile Profile updated successfully');
     }
   };
 
   const handleUpdateLocation = async () => {
-    setLoading(true);
     try {
       const location = await getCurrentLocation();
       
-      const response = await apiService.updateLocation({
+      const success = await profileUpdate.updateLocation({
         latitude: location.latitude,
         longitude: location.longitude,
-        address: location.address,
+        address: location.address || '',
       });
 
-      if (response.success && response.user) {
-        setProfile(response.user.profile);
-        Alert.alert('Success', 'Location updated successfully!');
-      } else {
-        Alert.alert('Error', response.error || 'Failed to update location');
+      if (!success) {
+        // Error already shown by hook
+        return;
       }
     } catch (error: any) {
-      // Check if it's an auth error
-      if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
-        Alert.alert('Session Expired', 'Please login again.', [
-          {
-            text: 'OK',
-            onPress: () => navigation.replace('Login'),
-          },
-        ]);
-      } else {
-        Alert.alert('Error', error.message || 'Failed to update location');
-      }
-    } finally {
-      setLoading(false);
+      Alert.alert('Error', error.message || 'Failed to get location');
     }
   };
 
@@ -273,14 +200,16 @@ export default function ProfileScreen({ navigation }: Props) {
           avatarSeed={profile.profilePicture?.seed}
           username={user?.mobileNumber || ''}
           onImageChange={(imageData, type, style, seed) => {
-            setProfile({
-              ...profile,
-              profilePicture: {
-                type,
-                url: type === 'upload' ? imageData : undefined,
-                avatarStyle: style,
-                seed: seed,
-              }
+            const profilePicture = {
+              type,
+              url: type === 'upload' ? imageData : undefined,
+              avatarStyle: style,
+              seed: seed,
+            };
+            
+            // Update profile picture with optimistic update and server sync
+            profileUpdate.updateProfilePicture(profilePicture, {
+              showAlert: false, // Don't show alert for each picture change
             });
           }}
         />
@@ -329,8 +258,16 @@ export default function ProfileScreen({ navigation }: Props) {
           placeholder={`YYYY-MM-DD (Max: ${getMaxDate()})`}
           value={profile.birthDate}
           onChangeText={(text) => {
-            const calculatedAge = calculateAge(text);
-            setProfile({ ...profile, birthDate: text, age: calculatedAge });
+            const calculatedAge = profileUpdate.calculateAge(text);
+            
+            // Update profile with optimistic update (no server call yet)
+            profileUpdate.updateProfile({ 
+              birthDate: text, 
+              age: calculatedAge 
+            }, { 
+              optimistic: true, 
+              showAlert: false 
+            });
             
             // Show alert if age is less than 16
             if (calculatedAge < 16 && calculatedAge > 0) {
@@ -354,7 +291,15 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.pickerContainer}>
           <Picker
             selectedValue={profile.gender}
-            onValueChange={(value) => setProfile({ ...profile, gender: value })}
+            onValueChange={(value) => {
+              // Update profile with optimistic update (no server call yet)
+              profileUpdate.updateProfile({ 
+                gender: value 
+              }, { 
+                optimistic: true, 
+                showAlert: false 
+              });
+            }}
             style={styles.picker}
           >
             <Picker.Item label="Select gender" value="" />
@@ -365,11 +310,11 @@ export default function ProfileScreen({ navigation }: Props) {
         </View>
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+          style={[styles.button, profileUpdate.loading && styles.buttonDisabled]}
           onPress={handleUpdateProfile}
-          disabled={loading}
+          disabled={profileUpdate.loading}
         >
-          {loading ? (
+          {profileUpdate.loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.buttonText}>Update Profile</Text>

@@ -148,15 +148,16 @@ export default function EditRoomModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[100vh] h-[100vh] sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Edit Room</DialogTitle>
           <DialogDescription>
             Update room details and settings
           </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-2 -mr-2">
           <div className="space-y-2">
             <Label htmlFor="name">Room Name</Label>
             <Input
@@ -225,8 +226,10 @@ export default function EditRoomModal({
               {successMessage}
             </div>
           )}
+          </div>
 
-          <div className="flex justify-end gap-2">
+          {/* Action Buttons - Fixed at bottom */}
+          <div className="flex justify-end gap-2 pt-4 border-t bg-background flex-shrink-0">
             <Button type="button" variant="outline" onClick={onClose}>
               Close
             </Button>

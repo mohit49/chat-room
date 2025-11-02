@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MapPin, Calendar, User, Users, Settings, Edit3, Bell, MessageCircle, Radio, Play, Pause, Volume2, VolumeX, Square } from 'lucide-react';
+import { MapPin, Calendar, User, Users, Settings, Edit3, Bell, MessageCircle, Radio, Play, Pause, Volume2, VolumeX, Square, UserPlus, Zap, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { APP_HEADER_CONFIGS } from '@/lib/config/app-header';
@@ -22,6 +22,7 @@ import { useSocket } from '@/lib/contexts/SocketContext';
 import ProfileCompletionBanner from '@/components/profile/ProfileCompletionBanner';
 import ProfileCompletionGuard from '@/components/profile/ProfileCompletionGuard';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
+import EmailVerificationGuard from '@/components/auth/EmailVerificationGuard';
 import OnlineUsersCarousel from '@/components/layout/OnlineUsersCarousel';
 import { FollowListDialog } from '@/components/user/FollowListDialog';
 import { getFollowCounts } from '@/lib/api/follow';
@@ -29,6 +30,7 @@ import { api } from '@/lib/api';
 import { BannerCarousel } from '@/components/home/BannerCarousel';
 import BroadcastCard from '@/components/home/BroadcastCard';
 import InstantChatSection from '@/components/home/InstantChatSection';
+import InstantChatDialog from '@/components/home/InstantChatDialog';
 import { EmailVerificationBanner } from '@/components/auth/EmailVerificationBanner';
 
 interface Room {
@@ -76,6 +78,7 @@ export default function HomePage() {
   const [isDirectMessageOpen, setIsDirectMessageOpen] = useState(false);
   const [directMessageUser, setDirectMessageUser] = useState<{ id: string; username: string; profilePicture?: any } | null>(null);
   const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
+  const [showInstantChatDialog, setShowInstantChatDialog] = useState(false);
 
   // Generate a unique gradient for each room based on room ID
   const getGradientForRoom = (roomId: string) => {
@@ -97,6 +100,25 @@ export default function HomePage() {
     // Use room ID to consistently pick the same gradient
     const hash = roomId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return gradients[hash % gradients.length];
+  };
+
+  // Generate random dark gradients for action buttons
+  const getRandomDarkGradient = (index: number) => {
+    const darkGradients = [
+      'from-purple-900 via-purple-800 to-red-900 hover:from-purple-800 hover:via-purple-700 hover:to-red-800',
+      'from-slate-900 via-blue-900 to-teal-900 hover:from-slate-800 hover:via-blue-800 hover:to-teal-800',
+      'from-emerald-900 via-green-800 to-orange-900 hover:from-emerald-800 hover:via-green-700 hover:to-orange-800',
+      'from-indigo-900 via-purple-900 to-pink-900 hover:from-indigo-800 hover:via-purple-800 hover:to-pink-800',
+      'from-gray-900 via-slate-800 to-zinc-900 hover:from-gray-800 hover:via-slate-700 hover:to-zinc-800',
+      'from-red-900 via-rose-800 to-pink-900 hover:from-red-800 hover:via-rose-700 hover:to-pink-800',
+      'from-cyan-900 via-teal-800 to-blue-900 hover:from-cyan-800 hover:via-teal-700 hover:to-blue-800',
+      'from-amber-900 via-orange-800 to-red-900 hover:from-amber-800 hover:via-orange-700 hover:to-red-800',
+      'from-violet-900 via-fuchsia-800 to-purple-900 hover:from-violet-800 hover:via-fuchsia-700 hover:to-purple-800'
+    ];
+    
+    // Use index + current time to get different gradients each time
+    const randomIndex = (index + Math.floor(Date.now() / 10000)) % darkGradients.length;
+    return darkGradients[randomIndex];
   };
 
   useEffect(() => {
@@ -375,16 +397,69 @@ export default function HomePage() {
                 followingCount={followCounts.following}
               />
             </div>
+
+            {/* Action Buttons with Email Verification Guard */}
+            <EmailVerificationGuard 
+              feature="chat features"
+              showInlineMessage={true}
+              blockInteraction={false}
+            >
+              <div className="mt-6 pt-4 border-t">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Connect with Stranger Button */}
+                  <Button 
+                    onClick={() => router.push('/random-connect')}
+                    className={`relative overflow-hidden bg-gradient-to-br ${getRandomDarkGradient(0)} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group`}
+                    size="lg"
+                  >
+                    <div className="flex items-center gap-2 relative z-10">
+                      <UserPlus className="h-5 w-5" />
+                      <span className="font-semibold">Connect with Stranger</span>
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                  </Button>
+
+                  {/* Chat Instantly Button */}
+                  <Button 
+                    onClick={() => setShowInstantChatDialog(true)}
+                    className={`relative overflow-hidden bg-gradient-to-br ${getRandomDarkGradient(1)} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group`}
+                    size="lg"
+                  >
+                    <div className="flex items-center gap-2 relative z-10">
+                      <Zap className="h-5 w-5" />
+                      <span className="font-semibold">Chat Instantly</span>
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                  </Button>
+
+                  {/* Create Chat Room Button */}
+                  <Button 
+                    onClick={() => setShowCreateModal(true)}
+                    className={`relative overflow-hidden bg-gradient-to-br ${getRandomDarkGradient(2)} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group`}
+                    size="lg"
+                  >
+                    <div className="flex items-center gap-2 relative z-10">
+                      <Plus className="h-5 w-5" />
+                      <span className="font-semibold">Create Chat Room</span>
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                  </Button>
+                </div>
+              </div>
+            </EmailVerificationGuard>
           </CardContent>
         </Card>
 
         {/* Banner Carousel */}
-        <BannerCarousel 
-          onCreateRoom={() => setShowCreateModal(true)}
-          onExploreRooms={() => router.push('/rooms')}
-          onViewNotifications={() => router.push('/notifications')}
-          onRandomConnect={() => router.push('/random-connect')}
-        />
+        <EmailVerificationGuard feature="interactive features" showInlineMessage={true} blockInteraction={false}>
+          <BannerCarousel 
+            onCreateRoom={() => setShowCreateModal(true)}
+            onExploreRooms={() => router.push('/rooms')}
+            onViewNotifications={() => router.push('/notifications')}
+            onRandomConnect={() => router.push('/random-connect')}
+            onInstantChat={() => setShowInstantChatDialog(true)}
+          />
+        </EmailVerificationGuard>
 
         {/* Online Users Carousel */}
         <div className="px-0">
@@ -402,29 +477,34 @@ export default function HomePage() {
         </div>
 
         {/* Voice Broadcast Card */}
-        <ProfileCompletionGuard 
-          isComplete={isComplete} 
-          missingFields={missingFields}
-          featureName="voice broadcasting"
-        >
-          <BroadcastCard />
-        </ProfileCompletionGuard>
+        <EmailVerificationGuard feature="voice broadcasting" blockInteraction={true}>
+          <ProfileCompletionGuard 
+            isComplete={isComplete} 
+            missingFields={missingFields}
+            featureName="voice broadcasting"
+          >
+            <BroadcastCard />
+          </ProfileCompletionGuard>
+        </EmailVerificationGuard>
 
         {/* Instant Chat Section */}
-        <ProfileCompletionGuard 
-          isComplete={isComplete} 
-          missingFields={missingFields}
-          featureName="instant chat"
-        >
-          <InstantChatSection />
-        </ProfileCompletionGuard>
+        <EmailVerificationGuard feature="instant chat" blockInteraction={true}>
+          <ProfileCompletionGuard 
+            isComplete={isComplete} 
+            missingFields={missingFields}
+            featureName="instant chat"
+          >
+            <InstantChatSection />
+          </ProfileCompletionGuard>
+        </EmailVerificationGuard>
 
         {/* My Rooms Section */}
-        <ProfileCompletionGuard 
-          isComplete={isComplete} 
-          missingFields={missingFields}
-          featureName="chat rooms and messaging"
-        >
+        <EmailVerificationGuard feature="chat rooms and messaging" blockInteraction={true}>
+          <ProfileCompletionGuard 
+            isComplete={isComplete} 
+            missingFields={missingFields}
+            featureName="chat rooms and messaging"
+          >
           <Card>
             <CardHeader className='mb-3'>
               <CardTitle className="flex items-center gap-3">
@@ -593,6 +673,7 @@ export default function HomePage() {
           </CardContent>
         </Card>
         </ProfileCompletionGuard>
+        </EmailVerificationGuard>
 
         {/* Welcome Message */}
         <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
@@ -654,6 +735,12 @@ export default function HomePage() {
             targetUser={directMessageUser}
           />
         )}
+
+        {/* Instant Chat Dialog */}
+        <InstantChatDialog
+          isOpen={showInstantChatDialog}
+          onClose={() => setShowInstantChatDialog(false)}
+        />
         </div>
       </div>
     </div>

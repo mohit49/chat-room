@@ -13,7 +13,7 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { useAuth } from '../hooks/useAuth';
 import { COLORS, getThemeColors } from '../constants';
 import { useTheme } from '../contexts/ThemeContext';
-import { MapPin, Calendar, User, Settings, Edit3, ChevronDown, Users, UserPlus } from 'lucide-react-native';
+import { MapPin, Calendar, User, Settings, Edit3, ChevronDown, Users, UserPlus, Zap, Plus } from 'lucide-react-native';
 import ProfileDropdown from '../components/ProfileDropdown';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -29,6 +29,25 @@ export default function HomeScreen({ navigation }: Props) {
   const [showDropdown, setShowDropdown] = React.useState(false);
   
   const colors = getThemeColors(actualTheme === 'dark');
+
+  // Generate random dark colors for buttons
+  const getRandomDarkColor = (index: number) => {
+    const darkColors = [
+      '#581C87', // Dark purple
+      '#0F172A', // Dark slate
+      '#064E3B', // Dark emerald
+      '#7C2D12', // Dark orange
+      '#4C1D95', // Dark violet
+      '#7F1D1D', // Dark red
+      '#164E63', // Dark cyan
+      '#92400E', // Dark amber
+      '#6B21A8', // Dark fuchsia
+    ];
+    
+    // Use index + current time to get different colors each time
+    const randomIndex = (index + Math.floor(Date.now() / 10000)) % darkColors.length;
+    return darkColors[randomIndex];
+  };
 
   const handleLogout = async () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -206,6 +225,85 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         </TouchableOpacity>
       </View>
+
+      {/* Gradient Action Buttons - Email Verification Required */}
+      {user?.emailVerified ? (
+        <View style={styles.gradientButtonsContainer}>
+          {/* Connect with Stranger Button */}
+          <TouchableOpacity 
+            style={[styles.gradientButton, { backgroundColor: getRandomDarkColor(0) }]}
+            onPress={() => {
+              // Navigate to random connect or implement functionality
+              Alert.alert('Connect with Stranger', 'Feature coming soon!');
+            }}
+          >
+            <UserPlus size={24} color="#fff" />
+            <Text style={styles.gradientButtonText}>Connect with Stranger</Text>
+          </TouchableOpacity>
+
+          {/* Chat Instantly Button */}
+          <TouchableOpacity 
+            style={[styles.gradientButton, { backgroundColor: getRandomDarkColor(1) }]}
+            onPress={() => {
+              Alert.alert(
+                'Start Instant Chat',
+                'Create a secure chat room and share the link with anyone. Chat rooms expire after 24 hours for security.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Use Web App', 
+                    onPress: () => {
+                      Alert.alert(
+                        'Web App Required',
+                        'Instant chat creation is currently available on the web app. Please use your browser to create instant chat rooms.',
+                        [{ text: 'OK' }]
+                      );
+                    }
+                  }
+                ]
+              );
+            }}
+          >
+            <Zap size={24} color="#fff" />
+            <Text style={styles.gradientButtonText}>Chat Instantly</Text>
+          </TouchableOpacity>
+
+          {/* Create Chat Room Button */}
+          <TouchableOpacity 
+            style={[styles.gradientButton, { backgroundColor: getRandomDarkColor(2) }]}
+            onPress={() => {
+              // Navigate to create room or implement functionality
+              Alert.alert('Create Chat Room', 'Feature coming soon!');
+            }}
+          >
+            <Plus size={24} color="#fff" />
+            <Text style={styles.gradientButtonText}>Create Chat Room</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={[styles.emailVerificationContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.emailVerificationContent}>
+            <Text style={[styles.emailVerificationTitle, { color: colors.text }]}>
+              📧 Email Verification Required
+            </Text>
+            <Text style={[styles.emailVerificationText, { color: colors.textSecondary }]}>
+              Please verify your email address to access chat features, create rooms, and connect with others.
+            </Text>
+            <TouchableOpacity 
+              style={[styles.verifyButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                Alert.alert(
+                  'Email Verification', 
+                  'Please check your email for the verification code and verify your account from the web app.',
+                  [{ text: 'OK' }]
+                );
+              }}
+            >
+              <Text style={styles.verifyButtonText}>Verify Email</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Welcome Message */}
       <View style={[styles.welcomeCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -446,6 +544,65 @@ const styles = StyleSheet.create({
   actionDescription: {
     fontSize: 14,
     color: COLORS.textSecondary,
+  },
+  gradientButtonsContainer: {
+    padding: 16,
+    gap: 12,
+  },
+  gradientButton: {
+    padding: 16,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    minHeight: 60,
+  },
+  gradientButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emailVerificationContainer: {
+    margin: 16,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+  },
+  emailVerificationContent: {
+    alignItems: 'center',
+    textAlign: 'center',
+  },
+  emailVerificationTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emailVerificationText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  verifyButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    minWidth: 120,
+  },
+  verifyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   welcomeCard: {
     backgroundColor: '#f0f9ff',

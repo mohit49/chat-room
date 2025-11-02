@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useSocket } from '@/lib/contexts/SocketContext';
+import EmailVerificationGuard from '@/components/auth/EmailVerificationGuard';
 
 // Dynamically import RandomChatWidget with no SSR to avoid hydration issues
 const RandomChatWidget = dynamic(() => import('@/components/chat/RandomChatWidget'), {
@@ -90,8 +91,10 @@ export default function RandomConnectPage() {
   }
 
   return (
-    <div className="h-screen w-screen fixed inset-0 bg-black">
-      <RandomChatWidget />
-    </div>
+    <EmailVerificationGuard feature="random connect" blockInteraction={true}>
+      <div className="h-screen w-screen fixed inset-0 bg-black">
+        <RandomChatWidget />
+      </div>
+    </EmailVerificationGuard>
   );
 }

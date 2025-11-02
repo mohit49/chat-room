@@ -18,6 +18,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   refreshVerificationStatus: () => Promise<void>;
+  updateUserProfile: (profileData: Partial<User['profile']>) => void;
+  updateUsername: (username: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -226,6 +228,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  // Update user profile in context (for optimistic updates)
+  const updateUserProfile = (profileData: Partial<User['profile']>): void => {
+    if (!user) return;
+    
+    setUser({
+      ...user,
+      profile: {
+        ...user.profile,
+        ...profileData,
+      },
+    });
+  };
+
+  // Update username in context
+  const updateUsername = (username: string): void => {
+    if (!user) return;
+    
+    setUser({
+      ...user,
+      username,
+    });
+  };
+
   const value: AuthContextType = {
     user,
     loading,
@@ -238,6 +263,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     refreshUser,
     refreshVerificationStatus,
+    updateUserProfile,
+    updateUsername,
   };
 
   return (
