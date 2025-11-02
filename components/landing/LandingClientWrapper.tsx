@@ -13,26 +13,19 @@ export default function LandingClientWrapper({ children }: LandingClientWrapperP
   const router = useRouter();
 
   // Redirect authenticated users to home
+  // Use a timeout to avoid blocking crawlers - render content immediately
   useEffect(() => {
     if (!loading && isAuthenticated) {
       router.push('/home');
     }
   }, [isAuthenticated, loading, router]);
 
-  // Show loading while checking auth
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-300">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't show landing page to authenticated users
-  if (isAuthenticated) {
+  // IMPORTANT: Always render children immediately for SEO/crawling
+  // Don't show loading screen as it blocks crawlers and creates white flash
+  // The page content is server-rendered and should be visible immediately
+  
+  // Don't show landing page to authenticated users (but still render initially)
+  if (!loading && isAuthenticated) {
     return null;
   }
 

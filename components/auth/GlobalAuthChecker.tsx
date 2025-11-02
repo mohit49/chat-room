@@ -77,7 +77,10 @@ export function GlobalAuthChecker({ children }: GlobalAuthCheckerProps) {
   }, [isAuthenticated, loading, pathname, router, hasRedirected]);
 
   // Show loading state while checking authentication
-  if (loading) {
+  // BUT: For static/public pages, render immediately to avoid blocking crawlers
+  const isPublic = PUBLIC_ROUTES.includes(pathname) || isInstantChatRoute(pathname);
+  
+  if (loading && !isPublic) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-center">
@@ -88,5 +91,7 @@ export function GlobalAuthChecker({ children }: GlobalAuthCheckerProps) {
     );
   }
 
+  // For public/static pages, render immediately even if loading
+  // This prevents white flash and ensures crawlers see content
   return <>{children}</>;
 }
